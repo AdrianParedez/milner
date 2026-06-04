@@ -11,7 +11,7 @@ fn prompt_starts_without_config() {
     let output = run_prompt(&["--no-config"], "");
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "keel> ");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "milner> ");
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
 
@@ -163,7 +163,7 @@ fn aliases_cannot_bypass_batch_rejection() {
 }
 
 fn run_prompt(args: &[&str], input: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_run"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_milner"))
         .args(args)
         .arg("--prompt")
         .stdin(Stdio::piped())
@@ -196,7 +196,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .unwrap()
         .as_nanos();
     let path = std::env::temp_dir().join(format!(
-        "keel-config-{name}-{}-{suffix}",
+        "milner-config-{name}-{}-{suffix}",
         std::process::id()
     ));
     fs::create_dir_all(&path).unwrap();

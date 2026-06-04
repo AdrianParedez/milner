@@ -30,15 +30,15 @@ fn absolute_executable_paths_launch_directly() {
 fn relative_executable_paths_resolve_against_child_cwd() {
     let temp = temp_dir("relative-exe");
     fs::copy(
-        env!("CARGO_BIN_EXE_run"),
-        temp.join("keel-relative-probe.exe"),
+        env!("CARGO_BIN_EXE_milner"),
+        temp.join("milner-relative-probe.exe"),
     )
     .unwrap();
     let output = run([
         "--cwd",
         &temp.display().to_string(),
         "--line",
-        ".\\keel-relative-probe.exe --no-config --line \"cargo --version\"",
+        ".\\milner-relative-probe.exe --no-config --line \"cargo --version\"",
     ]);
 
     assert_eq!(output.status.code(), Some(0));
@@ -106,13 +106,17 @@ fn child_environment_can_remove_child_only_values() {
 #[test]
 fn bare_names_do_not_search_child_cwd() {
     let temp = temp_dir("cwd-search");
-    fs::copy(env!("CARGO_BIN_EXE_run"), temp.join("keel-local-probe.exe")).unwrap();
+    fs::copy(
+        env!("CARGO_BIN_EXE_milner"),
+        temp.join("milner-local-probe.exe"),
+    )
+    .unwrap();
 
     let output = run([
         "--cwd",
         &temp.display().to_string(),
         "--line",
-        "keel-local-probe.exe --no-config --line \"cargo --version\"",
+        "milner-local-probe.exe --no-config --line \"cargo --version\"",
     ]);
 
     assert_eq!(output.status.code(), Some(125));
@@ -123,16 +127,16 @@ fn bare_names_do_not_search_child_cwd() {
 
 #[test]
 fn missing_executable_reports_resolution_policy() {
-    let output = run(["--line", "keel-definitely-missing-executable"]);
+    let output = run(["--line", "milner-definitely-missing-executable"]);
 
     assert_eq!(output.status.code(), Some(125));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("executable `keel-definitely-missing-executable` not found"));
+    assert!(stderr.contains("executable `milner-definitely-missing-executable` not found"));
     assert!(stderr.contains("did not search the current directory"));
 }
 
 fn run<const N: usize>(args: [&str; N]) -> Output {
-    std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+    std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
         .args(args)
         .output()
@@ -159,7 +163,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .unwrap()
         .as_nanos();
     let path = std::env::temp_dir().join(format!(
-        "keel-policy-{name}-{}-{suffix}",
+        "milner-policy-{name}-{}-{suffix}",
         std::process::id()
     ));
     fs::create_dir_all(&path).unwrap();

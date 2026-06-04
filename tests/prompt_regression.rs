@@ -11,7 +11,7 @@ fn prompt_displays_prompt_and_exits_on_eof() {
     let output = run_prompt("");
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "keel> ");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "milner> ");
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
 
@@ -20,7 +20,7 @@ fn prompt_treats_empty_lines_as_no_ops() {
     let output = run_prompt("\n");
 
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "keel> keel> ");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "milner> milner> ");
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
 
@@ -44,7 +44,7 @@ fn prompt_exit_builtin_uses_requested_code() {
     let output = run_prompt("exit 7\n");
 
     assert_eq!(output.status.code(), Some(7));
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "keel> ");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "milner> ");
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
 
@@ -129,7 +129,7 @@ fn prompt_rejects_batch_targets() {
 }
 
 fn run_prompt(input: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_run"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
         .arg("--prompt")
         .stdin(Stdio::piped())
@@ -154,7 +154,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .unwrap()
         .as_nanos();
     let path = std::env::temp_dir().join(format!(
-        "keel-prompt-{name}-{}-{suffix}",
+        "milner-prompt-{name}-{}-{suffix}",
         std::process::id()
     ));
     fs::create_dir_all(&path).unwrap();

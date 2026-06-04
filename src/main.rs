@@ -6,7 +6,7 @@ fn main() {
     match process::run_from_env() {
         Ok(code) => std::process::exit(code as i32),
         Err(err) => {
-            eprintln!("run: {err}");
+            eprintln!("milner: {err}");
             std::process::exit(err.exit_code());
         }
     }
@@ -14,6 +14,6 @@ fn main() {
 
 #[cfg(not(windows))]
 fn main() {
-    eprintln!("run: this milestone is Windows-only");
+    eprintln!("milner: this milestone is Windows-only");
     std::process::exit(125);
 }

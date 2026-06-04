@@ -98,7 +98,7 @@ fn missing_redirection_file_prevents_launch() {
 }
 
 fn run_line(input: &str) -> Output {
-    std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+    std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
         .arg("--line")
         .arg(input)
@@ -112,7 +112,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .unwrap()
         .as_nanos();
     let path = std::env::temp_dir().join(format!(
-        "keel-redirection-{name}-{}-{suffix}",
+        "milner-redirection-{name}-{}-{suffix}",
         std::process::id()
     ));
     fs::create_dir_all(&path).unwrap();

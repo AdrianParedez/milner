@@ -1,35 +1,35 @@
-# Keel
+# Milner
 
-Keel is a from-scratch Rust shell exploration for Windows. The current public
+Milner is a from-scratch Rust shell exploration for Windows. The current public
 surface is a small process runner and a minimal prompt loop built on direct
 Win32 process creation.
 
 ```text
-run.exe <program> <args...>
-run.exe [--no-config] [--config <file>] [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>
-run.exe --line <command-line>
-run.exe --prompt
+milner.exe <program> <args...>
+milner.exe [--no-config] [--config <file>] [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>
+milner.exe --line <command-line>
+milner.exe --prompt
 ```
 
 Example targets:
 
 ```text
-run.exe notepad.exe
-run.exe cargo --version
-run.exe powershell -NoProfile -Command "Get-Date"
-run.exe --line "cargo --version"
-run.exe --line "powershell -NoProfile -Command \"Get-Date\" > date.txt"
-run.exe --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep -Seconds 30"
-run.exe --config "%APPDATA%\keel\config.toml" --prompt
-run.exe --prompt
+milner.exe notepad.exe
+milner.exe cargo --version
+milner.exe powershell -NoProfile -Command "Get-Date"
+milner.exe --line "cargo --version"
+milner.exe --line "powershell -NoProfile -Command \"Get-Date\" > date.txt"
+milner.exe --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep -Seconds 30"
+milner.exe --config "%APPDATA%\milner\config.toml" --prompt
+milner.exe --prompt
 ```
 
-Batch targets (`.bat` and `.cmd`) are intentionally rejected until Keel has a
+Batch targets (`.bat` and `.cmd`) are intentionally rejected until Milner has a
 cmd-safe invocation policy.
 
 ## Current Surface
 
-`run.exe` launches native executables with direct Win32 calls:
+`milner.exe` launches native executables with direct Win32 calls:
 
 - `CreateProcessW`
 - `WaitForSingleObject`
@@ -39,8 +39,8 @@ cmd-safe invocation policy.
 - environment block handling
 - exit-code propagation
 
-`run.exe --prompt` starts a plain `keel>` loop. It reads one command line at a
-time, uses Keel's parser, executes one native command, records the previous exit
+`milner.exe --prompt` starts a plain `milner>` loop. It reads one command line at a
+time, uses Milner's parser, executes one native command, records the previous exit
 code internally, and exits cleanly on EOF.
 
 The prompt resolves these built-ins before external commands:
@@ -71,31 +71,31 @@ External commands are resolved before launch:
 - Bare executable names are searched through `PATH` only. The current directory
   is not searched for bare names unless it is explicitly present in `PATH`.
 - Relative paths such as `.\tool.exe` resolve against the configured child
-  current directory, or against Keel's current directory when no child directory
+  current directory, or against Milner's current directory when no child directory
   is configured.
 - Absolute paths launch directly.
 - `.bat` and `.cmd` targets remain rejected.
 
-Keel passes the resolved native executable as `lpApplicationName` to
+Milner passes the resolved native executable as `lpApplicationName` to
 `CreateProcessW`. `--cwd <dir>` sets the child current directory without
-changing Keel's process-global current directory. `--set-env NAME=VALUE` and
+changing Milner's process-global current directory. `--set-env NAME=VALUE` and
 `--unset-env NAME` build a child-only environment block instead of mutating
-Keel's process environment.
+Milner's process environment.
 
 `--timeout-ms <ms>` applies to each foreground external command or two-command
-pipeline. If the timeout expires, Keel terminates unfinished direct foreground
+pipeline. If the timeout expires, Milner terminates unfinished direct foreground
 children, records status `130`, reports the cancellation, closes its process
-handles, and returns to the prompt when running interactively. Keel does not
+handles, and returns to the prompt when running interactively. Milner does not
 install a custom Ctrl+C handler yet, and it does not claim POSIX-style job
 control or background process management. Descendant processes created by a
 child are not yet grouped or terminated with Windows Job Objects.
 
 ## Configuration
 
-Keel starts without a configuration file. By default it looks for:
+Milner starts without a configuration file. By default it looks for:
 
 ```text
-%APPDATA%\keel\config.toml
+%APPDATA%\milner\config.toml
 ```
 
 Use `--config <file>` to load a specific file, or `--no-config` to ignore the
@@ -103,11 +103,11 @@ default path. The current parser accepts a deliberately small config subset:
 
 ```text
 [prompt]
-text = "keel> "
+text = "milner> "
 
 [history]
 enabled = false
-path = C:\Users\you\AppData\Roaming\keel\history.txt
+path = C:\Users\you\AppData\Roaming\milner\history.txt
 
 [aliases]
 gs = git status
@@ -118,26 +118,26 @@ number. History is disabled by default. When enabled without an explicit path,
 history is written to:
 
 ```text
-%APPDATA%\keel\history.txt
+%APPDATA%\milner\history.txt
 ```
 
-Keel avoids recording command lines containing obvious secret words such as
-`password`, `secret`, or `token`. Aliases are parsed into Keel command
+Milner avoids recording command lines containing obvious secret words such as
+`password`, `secret`, or `token`. Aliases are parsed into Milner command
 structures before execution; they cannot include redirection or pipelines, and
 they still pass through executable resolution and batch-target rejection.
 
 No configuration, history, completion, or alias dependency was added in this
-milestone. Keel keeps these behaviours local until a Windows-focused line editor
+milestone. Milner keeps these behaviours local until a Windows-focused line editor
 or config-path crate is justified.
 
 ## Build And Run
 
 ```text
 cargo build
-.\target\debug\run.exe cargo --version
-.\target\debug\run.exe --line "cargo --version"
-.\target\debug\run.exe --prompt
-.\target\debug\run.exe powershell -NoProfile -Command "Get-Date"
+.\target\debug\milner.exe cargo --version
+.\target\debug\milner.exe --line "cargo --version"
+.\target\debug\milner.exe --prompt
+.\target\debug\milner.exe powershell -NoProfile -Command "Get-Date"
 ```
 
 Verification:

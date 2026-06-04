@@ -91,7 +91,7 @@ impl std::fmt::Display for RunError {
         match self {
             Self::Usage => write!(
                 f,
-                "usage: run.exe [--no-config] [--config <file>] [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>\n       run.exe [options] --line <command-line>\n       run.exe [options] --prompt"
+                "usage: milner.exe [--no-config] [--config <file>] [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>\n       milner.exe [options] --line <command-line>\n       milner.exe [options] --prompt"
             ),
             Self::Parse(err) => write!(f, "{err}"),
             Self::Config(err) => write!(f, "{err}"),

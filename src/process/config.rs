@@ -7,7 +7,7 @@ use super::parser::{
     ExecutionPlan, InputSpec, OutputSpec, ParseError, ParsedCommand, parse_execution_line,
 };
 
-pub(super) const DEFAULT_PROMPT: &str = "keel> ";
+pub(super) const DEFAULT_PROMPT: &str = "milner> ";
 
 #[derive(Clone, Debug)]
 pub(super) enum ConfigSource {
@@ -298,13 +298,13 @@ fn strip_comment(line: &str) -> &str {
 fn default_config_path() -> Option<PathBuf> {
     std::env::var_os("APPDATA")
         .map(PathBuf::from)
-        .map(|path| path.join("keel").join("config.toml"))
+        .map(|path| path.join("milner").join("config.toml"))
 }
 
 pub(super) fn default_history_path() -> Option<PathBuf> {
     std::env::var_os("APPDATA")
         .map(PathBuf::from)
-        .map(|path| path.join("keel").join("history.txt"))
+        .map(|path| path.join("milner").join("history.txt"))
 }
 
 fn alias_parse_error(path: &Path, line: usize, err: ParseError) -> ConfigError {

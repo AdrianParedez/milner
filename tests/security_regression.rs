@@ -23,7 +23,7 @@ fn rejects_batch_targets_before_cmd_can_reinterpret_arguments() {
     let marker = temp.join("batch_marker.txt");
     fs::write(&script, "@echo off\r\necho ARG1=%1\r\necho ARG2=%2\r\n").unwrap();
 
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
         .arg(&script)
         .arg(format!(
@@ -41,7 +41,7 @@ fn rejects_batch_targets_before_cmd_can_reinterpret_arguments() {
 
 #[test]
 fn parsed_command_line_launches_through_process_runner() {
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
         .arg("--line")
         .arg("powershell -NoProfile -Command \"exit 17\"")
@@ -65,7 +65,7 @@ fn parsed_batch_targets_remain_rejected_before_launch() {
     )
     .unwrap();
 
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
         .arg("--line")
         .arg(format!("\"{}\"", script.display()))
@@ -95,7 +95,7 @@ fn child_process_does_not_receive_unrelated_inheritable_handles() {
         inherited as usize
     );
     let status = spawn_run_with_inheritance(
-        OsStr::new(env!("CARGO_BIN_EXE_run")),
+        OsStr::new(env!("CARGO_BIN_EXE_milner")),
         &[
             OsString::from("--no-config"),
             OsString::from("powershell"),
@@ -135,7 +135,7 @@ fn pipeline_children_do_not_receive_unrelated_inheritable_handles() {
         "powershell -NoProfile -Command \"[Console]::Out.Write('x')\" | powershell -NoProfile -Command \"{probe}\""
     );
     let status = spawn_run_with_inheritance(
-        OsStr::new(env!("CARGO_BIN_EXE_run")),
+        OsStr::new(env!("CARGO_BIN_EXE_milner")),
         &[
             OsString::from("--no-config"),
             OsString::from("--line"),
@@ -158,7 +158,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .unwrap()
         .as_nanos();
     let path = std::env::temp_dir().join(format!(
-        "keel-security-{name}-{}-{suffix}",
+        "milner-security-{name}-{}-{suffix}",
         std::process::id()
     ));
     fs::create_dir_all(&path).unwrap();

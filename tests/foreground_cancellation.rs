@@ -12,7 +12,7 @@ fn timeout_cancels_foreground_child() {
     let marker = temp.join("late-marker.txt");
     let script = delayed_marker_script(&marker);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_run"))
+    let output = Command::new(env!("CARGO_BIN_EXE_milner"))
         .args([
             "--no-config",
             "--timeout-ms",
@@ -56,18 +56,18 @@ fn prompt_returns_after_cancelled_foreground_child() {
 fn prompt_recovers_after_failed_foreground_launch() {
     let output = run_prompt_with_args(
         &[],
-        "definitely-missing-keel-executable\npowershell -NoProfile -Command \"exit 0\"\nexit\n",
+        "definitely-missing-milner-executable\npowershell -NoProfile -Command \"exit 0\"\nexit\n",
     );
 
     assert_eq!(output.status.code(), Some(0));
     assert!(
         String::from_utf8_lossy(&output.stderr)
-            .contains("executable `definitely-missing-keel-executable` not found")
+            .contains("executable `definitely-missing-milner-executable` not found")
     );
 }
 
 fn run_prompt_with_args(args: &[&str], input: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_run"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
         .args(args)
         .arg("--prompt")
@@ -104,7 +104,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .unwrap()
         .as_nanos();
     let path = std::env::temp_dir().join(format!(
-        "keel-foreground-{name}-{}-{suffix}",
+        "milner-foreground-{name}-{}-{suffix}",
         std::process::id()
     ));
     fs::create_dir_all(&path).unwrap();

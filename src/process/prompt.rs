@@ -16,7 +16,7 @@ pub fn run_prompt(options: ExecutionOptions) -> i32 {
     match run_prompt_with_io(stdin.lock(), stdout.lock(), stderr.lock(), options) {
         Ok(code) => code,
         Err(err) => {
-            eprintln!("run: {err}");
+            eprintln!("milner: {err}");
             125
         }
     }
@@ -132,7 +132,7 @@ where
                 }
             }
             Err(err) => {
-                writeln!(errors, "run: {err}")?;
+                writeln!(errors, "milner: {err}")?;
                 state.last_status = RunError::Parse(err).exit_code();
             }
         }
@@ -152,13 +152,13 @@ where
     match run_prompt_plan(plan, state, output) {
         PromptPlanResult::Handled(Ok(())) => {}
         PromptPlanResult::Handled(Err(err)) => {
-            writeln!(errors, "run: {err}")?;
+            writeln!(errors, "milner: {err}")?;
             state.last_status = err.exit_code();
         }
         PromptPlanResult::External(plan) => match execute_plan(*plan, &state.execution_options) {
             Ok(code) => state.last_status = code as i32,
             Err(err) => {
-                writeln!(errors, "run: {err}")?;
+                writeln!(errors, "milner: {err}")?;
                 state.last_status = err.exit_code();
             }
         },
@@ -481,7 +481,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(code, 0);
-        assert_eq!(String::from_utf8(output).unwrap(), "keel> keel> ");
+        assert_eq!(String::from_utf8(output).unwrap(), "milner> milner> ");
         assert_eq!(String::from_utf8(errors).unwrap(), "");
     }
 
@@ -499,7 +499,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(code, 2);
-        assert_eq!(String::from_utf8(output).unwrap(), "keel> keel> ");
+        assert_eq!(String::from_utf8(output).unwrap(), "milner> milner> ");
         assert!(
             String::from_utf8(errors)
                 .unwrap()
