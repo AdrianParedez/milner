@@ -5,6 +5,7 @@ PROJECT_NOTE.md
 .agents/
 .codex/
 AGENTS.md
+scripts/
 
 # Internal research, planning, and generated project notes
 architecture-decision-corpus/
