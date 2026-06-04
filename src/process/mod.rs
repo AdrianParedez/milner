@@ -1,11 +1,12 @@
 mod command_line;
 mod handles;
 mod parser;
+mod prompt;
 mod win32;
 
 use std::ffi::OsString;
 
-use parser::{ParseError, parse_command_line};
+use parser::{ParseError, ParsedCommand, parse_command_line};
 pub use win32::run_child;
 
 #[derive(Debug)]
@@ -44,7 +45,7 @@ impl std::fmt::Display for RunError {
         match self {
             Self::Usage => write!(
                 f,
-                "usage: run.exe <program> <args...>\n       run.exe --line <command-line>"
+                "usage: run.exe <program> <args...>\n       run.exe --line <command-line>\n       run.exe --prompt"
             ),
             Self::Parse(err) => write!(f, "{err}"),
             Self::NonUnicodeCommandLine => write!(f, "--line input must be valid Unicode"),
@@ -74,7 +75,15 @@ pub fn run_from_env() -> Result<u32, RunError> {
     let mut args = std::env::args_os();
     let _runner = args.next();
     let first = args.next().ok_or(RunError::Usage)?;
-    let (program, child_args) = if first == "--line" {
+    if first == "--prompt" {
+        if args.next().is_some() {
+            return Err(RunError::Usage);
+        }
+
+        return Ok(prompt::run_prompt() as u32);
+    }
+
+    let command = if first == "--line" {
         let input = args.next().ok_or(RunError::Usage)?;
         if args.next().is_some() {
             return Err(RunError::Usage);
@@ -83,17 +92,23 @@ pub fn run_from_env() -> Result<u32, RunError> {
         let input = input
             .into_string()
             .map_err(|_| RunError::NonUnicodeCommandLine)?;
-        let parsed = parse_command_line(&input).map_err(RunError::Parse)?;
-        (parsed.program, parsed.args)
+        parse_command_line(&input).map_err(RunError::Parse)?
     } else {
-        (first, args.collect::<Vec<OsString>>())
+        ParsedCommand {
+            program: first,
+            args: args.collect::<Vec<OsString>>(),
+        }
     };
 
-    if program.is_empty() {
+    execute_command(command)
+}
+
+fn execute_command(command: ParsedCommand) -> Result<u32, RunError> {
+    if command.program.is_empty() {
         return Err(RunError::EmptyProgram);
     }
 
-    command_line::reject_windows_batch_target(&program)?;
-    let command_line = command_line::build_command_line(&program, &child_args)?;
+    command_line::reject_windows_batch_target(&command.program)?;
+    let command_line = command_line::build_command_line(&command.program, &command.args)?;
     run_child(command_line)
 }

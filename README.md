@@ -1,9 +1,13 @@
 # Keel
 
-Keel is a from-scratch Rust shell exploration for Windows. The first milestone is not an interactive prompt. It is a small process runner that calls the Win32 process creation path directly.
+Keel is a from-scratch Rust shell exploration for Windows. The current public
+surface is a small process runner and a minimal prompt loop built on direct
+Win32 process creation.
 
 ```text
 run.exe <program> <args...>
+run.exe --line <command-line>
+run.exe --prompt
 ```
 
 Example targets:
@@ -12,14 +16,16 @@ Example targets:
 run.exe notepad.exe
 run.exe cargo --version
 run.exe powershell -NoProfile -Command "Get-Date"
+run.exe --line "cargo --version"
+run.exe --prompt
 ```
 
 Batch targets (`.bat` and `.cmd`) are intentionally rejected until Keel has a
 cmd-safe invocation policy.
 
-## Current Milestone
+## Current Surface
 
-Build `run.exe` with direct Win32 calls:
+`run.exe` launches native executables with direct Win32 calls:
 
 - `CreateProcessW`
 - `WaitForSingleObject`
@@ -29,13 +35,20 @@ Build `run.exe` with direct Win32 calls:
 - environment block handling
 - exit-code propagation
 
-The point is to learn the lowest practical shell layer on Windows before building command parsing, an interactive prompt, or a terminal UI.
+`run.exe --prompt` starts a plain `keel>` loop. It reads one command line at a
+time, uses Keel's parser, executes one native command, records the previous exit
+code internally, and exits cleanly on EOF.
+
+The prompt intentionally has no line editing, history, completion, syntax
+highlighting, pipelines, redirection, or custom Ctrl+C behaviour yet.
 
 ## Build And Run
 
 ```text
 cargo build
 .\target\debug\run.exe cargo --version
+.\target\debug\run.exe --line "cargo --version"
+.\target\debug\run.exe --prompt
 .\target\debug\run.exe powershell -NoProfile -Command "Get-Date"
 ```
 
