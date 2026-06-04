@@ -1,0 +1,31 @@
+# Internal operator notes
+PROJECT_NOTE.md
+
+# Local Codex and agent tooling
+.agents/
+.codex/
+
+# Generated research and browser artifacts
+output/
+.playwright-cli/
+
+# Secrets and local machine configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Rust build output
+target/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Editor and OS metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
