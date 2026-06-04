@@ -176,6 +176,18 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 ```
 
+Generate local Rust HTML documentation:
+
+```text
+cargo doc --no-deps --document-private-items
+```
+
+Open:
+
+```text
+target\doc\milner\index.html
+```
+
 Optional combined test runner:
 
 ```text
