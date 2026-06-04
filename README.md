@@ -99,26 +99,34 @@ Use `exit [code]` to leave prompt mode. In a Windows console, <kbd>Ctrl</kbd> +
 
 ```text
 milner.exe <program> <args...>
-milner.exe [--no-config] [--config <file>] [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>
+milner.exe [options] <program> <args...>
 milner.exe [options] --line <command-line>
 milner.exe [options] --prompt
+
+options:
+  --no-config
+  --config <file>
+  --cwd <dir>
+  --set-env NAME=VALUE
+  --unset-env NAME
+  --timeout-ms <ms>
 ```
 
 Examples:
 
 ```powershell
-.\target\debug\milner.exe --no-config notepad.exe
-.\target\debug\milner.exe --no-config powershell -NoProfile -Command "Get-Date"
-.\target\debug\milner.exe --no-config --line "powershell -NoProfile -Command `"Get-Date`" > date.txt"
-.\target\debug\milner.exe --no-config --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep -Seconds 30"
+milner.exe --no-config notepad.exe
+milner.exe --no-config powershell -NoProfile -Command "Get-Date"
+milner.exe --no-config --line "cargo --version > version.txt"
+milner.exe --no-config --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep 30"
 ```
 
 Policy shape at a glance:
 
 ```diff
 + milner.exe --line "cargo --version"
-+ milner.exe --line "powershell -NoProfile -Command `"Get-Date`" > date.txt"
-+ milner.exe --line "powershell -NoProfile -Command `"Write-Output left`" | powershell -NoProfile -Command `"$input`""
++ milner.exe --line "cargo --version > version.txt"
++ milner.exe --line "where powershell | findstr powershell"
 - milner.exe --line "build.cmd"
 - milner.exe --line "echo %PATH%"
 - milner.exe --line "cargo test && cargo clippy"
@@ -135,17 +143,17 @@ Policy shape at a glance:
 | Pipelines | Supports exactly one two-command external pipeline. |
 | Execution policy | Rejects unsupported operators, `.bat`, and `.cmd` targets. |
 | Handles | Gives children only intended `stdin`, `stdout`, and `stderr`. |
-| Configuration | Reads a small TOML-like config subset for prompt, history, and aliases. |
+| Configuration | Reads a small config subset for prompt, history, and aliases. |
 | Cancellation | Cancels foreground commands with `--timeout-ms <ms>`. |
 
 <details>
 <summary><strong>More command examples</strong></summary>
 
 ```powershell
-.\target\debug\milner.exe --no-config --cwd C:\Windows notepad.exe
-.\target\debug\milner.exe --no-config --set-env MILNER_DEMO=1 powershell -NoProfile -Command "$env:MILNER_DEMO"
-.\target\debug\milner.exe --no-config --line "powershell -NoProfile -Command `"Write-Output one`" >> output.txt"
-.\target\debug\milner.exe --no-config --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep -Seconds 30"
+milner.exe --no-config --cwd C:\Windows notepad.exe
+milner.exe --no-config --set-env MILNER_DEMO=1 powershell -NoProfile -Command "$env:MILNER_DEMO"
+milner.exe --no-config --line "cargo --version >> output.txt"
+milner.exe --no-config --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep 30"
 ```
 
 </details>
@@ -156,12 +164,12 @@ Policy shape at a glance:
 | --- | --- | --- |
 | `program arg` | Supported | Bare words and quoted arguments. |
 | `"empty" ""` | Supported | Empty quoted arguments are preserved. |
-| `>` | Supported | Redirect stdout, replacing the target. |
-| `>>` | Supported | Redirect stdout, appending to the target. |
-| `<` | Supported | Redirect stdin from a file. |
-| `left \| right` | Supported | Exactly one two-command pipeline. |
+| `stdout > file` | Supported | Redirect stdout, replacing the target. |
+| `stdout >> file` | Supported | Redirect stdout, appending to the target. |
+| `stdin < file` | Supported | Redirect stdin from a file. |
+| `left \| right` | Supported | Exactly one external two-command pipeline. |
 | `&&`, `\|\|`, `;` | Rejected | Explicit parse errors. |
-| Variables, globbing, command substitution | Not supported | No silent expansion. |
+| Variables, globs, substitution | Not supported | No silent expansion. |
 | `.bat`, `.cmd` | Rejected | No `cmd.exe` fallback. |
 
 ## Configuration
