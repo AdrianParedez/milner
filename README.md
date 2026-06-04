@@ -39,6 +39,13 @@ cmd-safe invocation policy.
 time, uses Keel's parser, executes one native command, records the previous exit
 code internally, and exits cleanly on EOF.
 
+The prompt resolves these built-ins before external commands:
+
+- `cd <path>` changes the shell current directory.
+- `pwd` prints the shell current directory.
+- `exit [code]` exits the prompt with the provided code, or with the previous
+  command status when no code is provided.
+
 The prompt intentionally has no line editing, history, completion, syntax
 highlighting, pipelines, redirection, or custom Ctrl+C behaviour yet.
 

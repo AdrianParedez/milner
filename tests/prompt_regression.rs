@@ -40,6 +40,62 @@ fn prompt_returns_last_child_exit_code_on_eof() {
 }
 
 #[test]
+fn prompt_exit_builtin_uses_requested_code() {
+    let output = run_prompt("exit 7\n");
+
+    assert_eq!(output.status.code(), Some(7));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "keel> ");
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+}
+
+#[test]
+fn prompt_pwd_prints_shell_current_directory() {
+    let temp = temp_dir("pwd");
+    let output = run_prompt(&format!("cd \"{}\"\npwd\nexit 0\n", temp.display()));
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&output.stdout).contains(&temp.display().to_string()));
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+}
+
+#[test]
+fn prompt_cd_affects_next_external_command() {
+    let temp = temp_dir("cd-affects-child");
+    let marker = temp.join("cwd_marker.txt");
+    let input = format!(
+        "cd \"{}\"\npowershell -NoProfile -Command \"[System.IO.File]::WriteAllText('cwd_marker.txt',(Get-Location).Path)\"\nexit 0\n",
+        temp.display()
+    );
+    let output = run_prompt(&input);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        fs::read_to_string(marker).unwrap(),
+        temp.display().to_string()
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+}
+
+#[test]
+fn prompt_reports_builtin_argument_errors() {
+    let output = run_prompt("cd\npwd extra\nexit nope\nexit 0\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(stderr.contains("cd: missing operand"));
+    assert!(stderr.contains("pwd: too many operands"));
+    assert!(stderr.contains("exit: invalid code `nope`"));
+}
+
+#[test]
+fn prompt_reports_invalid_cd_paths() {
+    let output = run_prompt("cd X:\\keel\\definitely-missing-directory\nexit 0\n");
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cd: cannot change to"));
+}
+
+#[test]
 fn prompt_recovers_from_parser_errors() {
     let output = run_prompt("tool |\npowershell -NoProfile -Command \"exit 0\"\n");
 
