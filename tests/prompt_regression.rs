@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -54,7 +54,11 @@ fn prompt_pwd_prints_shell_current_directory() {
     let output = run_prompt(&format!("cd \"{}\"\npwd\nexit 0\n", temp.display()));
 
     assert_eq!(output.status.code(), Some(0));
-    assert!(String::from_utf8_lossy(&output.stdout).contains(&temp.display().to_string()));
+    assert!(
+        String::from_utf8_lossy(&output.stdout)
+            .to_ascii_lowercase()
+            .contains(&normalize_existing_path(&temp))
+    );
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
 
@@ -70,8 +74,8 @@ fn prompt_cd_affects_next_external_command() {
 
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
-        strip_extended_prefix(&fs::read_to_string(marker).unwrap()),
-        temp.display().to_string()
+        normalize_existing_path(Path::new(&fs::read_to_string(marker).unwrap())),
+        normalize_existing_path(&temp)
     );
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
@@ -159,4 +163,9 @@ fn temp_dir(name: &str) -> PathBuf {
 
 fn strip_extended_prefix(path: &str) -> &str {
     path.strip_prefix("\\\\?\\").unwrap_or(path)
+}
+
+fn normalize_existing_path(path: &Path) -> String {
+    let canonical = fs::canonicalize(path).unwrap();
+    strip_extended_prefix(&canonical.display().to_string()).to_ascii_lowercase()
 }
