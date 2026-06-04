@@ -39,6 +39,42 @@ fn rejects_batch_targets_before_cmd_can_reinterpret_arguments() {
 }
 
 #[test]
+fn parsed_command_line_launches_through_process_runner() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+        .arg("--line")
+        .arg("powershell -NoProfile -Command \"exit 17\"")
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(17));
+}
+
+#[test]
+fn parsed_batch_targets_remain_rejected_before_launch() {
+    let temp = temp_dir("parsed-batch-reject");
+    let script = temp.join("echo_args.cmd");
+    let marker = temp.join("parsed_batch_marker.txt");
+    fs::write(
+        &script,
+        format!(
+            "@echo off\r\necho SHOULD_NOT_EXIST>{}\r\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+        .arg("--line")
+        .arg(format!("\"{}\"", script.display()))
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(125));
+    assert!(!marker.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("batch targets are not supported"));
+}
+
+#[test]
 fn child_process_does_not_receive_unrelated_inheritable_handles() {
     let temp = temp_dir("handle-list");
     let marker = temp.join("leaked_handle.txt");
