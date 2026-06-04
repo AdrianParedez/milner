@@ -4,6 +4,7 @@ PROJECT_NOTE.md
 # Local Codex and agent tooling
 .agents/
 .codex/
+AGENTS.md
 
 # Internal research, planning, and generated project notes
 architecture-decision-corpus/
