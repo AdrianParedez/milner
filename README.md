@@ -130,6 +130,34 @@ No configuration, history, completion, or alias dependency was added in this
 milestone. Milner keeps these behaviours local until a Windows-focused line editor
 or config-path crate is justified.
 
+## Installation
+
+Download the latest Windows release binary:
+
+```powershell
+$asset = "milner-x86_64-pc-windows-msvc.zip"
+$base = "https://github.com/AdrianParedez/keel/releases/latest/download"
+
+Invoke-WebRequest "$base/$asset" -OutFile $asset
+Invoke-WebRequest "$base/$asset.sha256" -OutFile "$asset.sha256"
+
+$expected = (Get-Content "$asset.sha256").Split(" ")[0]
+$actual = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actual -ne $expected) { throw "checksum mismatch" }
+
+Expand-Archive $asset -DestinationPath .\milner
+.\milner\milner.exe --prompt
+```
+
+Install from source:
+
+```powershell
+cargo install --git https://github.com/AdrianParedez/keel --locked
+milner --prompt
+```
+
+Release binaries are published when a `vX.Y.Z` tag is pushed.
+
 ## Build And Run
 
 ```text

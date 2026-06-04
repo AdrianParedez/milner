@@ -1,0 +1,73 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, such as v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RELEASE_ASSET: milner-x86_64-pc-windows-msvc
+
+jobs:
+  windows:
+    name: windows / x86_64-pc-windows-msvc
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build output
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Smoke test release binary
+        run: .\target\release\milner.exe --no-config powershell -NoProfile -Command "exit 0"
+
+      - name: Package release assets
+        shell: pwsh
+        run: |
+          $package = Join-Path "dist" $env:RELEASE_ASSET
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
+          Copy-Item "target\release\milner.exe" $package
+          Copy-Item "LICENSE" $package
+          Copy-Item "README.md" $package
+
+          $archive = "dist\$env:RELEASE_ASSET.zip"
+          Compress-Archive -Path "$package\*" -DestinationPath $archive -Force
+
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $env:RELEASE_ASSET.zip" | Set-Content -Path "$archive.sha256" -Encoding ascii
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        shell: pwsh
+        run: |
+          $assets = @(
+            "dist\$env:RELEASE_ASSET.zip",
+            "dist\$env:RELEASE_ASSET.zip.sha256"
+          )
+
+          gh release create $env:RELEASE_TAG $assets `
+            --title $env:RELEASE_TAG `
+            --generate-notes `
+            --verify-tag
