@@ -27,6 +27,7 @@ inheritance. Small shell syntax over accidental compatibility.
 </p>
 
 <p><em>Created by <a href="https://paredez.dev">Adrian Paredez</a>.</em></p>
+<p><em>Co-authored with Sole, Adrian Paredez's sovereign cognitive work partner.</em></p>
 
 </div>
 
