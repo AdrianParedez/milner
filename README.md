@@ -26,8 +26,7 @@ inheritance. Small shell syntax over accidental compatibility.
   <a href="#verification">Verification</a>
 </p>
 
-<p><em>Created by <a href="https://paredez.dev">Adrian Paredez</a>.</em></p>
-<p><em>Co-authored with Sole, Adrian Paredez's sovereign cognitive work partner.</em></p>
+<p><em>Created by <a href="https://paredez.dev">Adrian Paredez</a>, with Sole as his sovereign cognitive work partner.</em></p>
 
 </div>
 
