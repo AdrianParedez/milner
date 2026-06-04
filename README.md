@@ -28,6 +28,22 @@ Build `run.exe` with direct Win32 calls:
 
 The point is to learn the lowest practical shell layer on Windows before building command parsing, an interactive prompt, or a terminal UI.
 
+## Build And Run
+
+```text
+cargo build
+.\target\debug\run.exe cargo --version
+.\target\debug\run.exe powershell -NoProfile -Command "Get-Date"
+```
+
+Verification:
+
+```text
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+```
+
 ## Documentation
 
 - [Win32 process runner research](docs/research/win32-process-runner.md)
