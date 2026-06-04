@@ -9,8 +9,8 @@ typed parsing, and narrow execution policy.**
 inheritance. Small shell syntax over accidental compatibility.
 
 <p>
-  <a href="https://github.com/AdrianParedez/keel/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/AdrianParedez/keel/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/AdrianParedez/keel/actions/workflows/docs.yml"><img alt="Docs" src="https://github.com/AdrianParedez/keel/actions/workflows/docs.yml/badge.svg"></a>
+  <a href="https://github.com/AdrianParedez/milner/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/AdrianParedez/milner/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/AdrianParedez/milner/actions/workflows/docs.yml"><img alt="Docs" src="https://github.com/AdrianParedez/milner/actions/workflows/docs.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <img alt="Rust 2024" src="https://img.shields.io/badge/rust-2024-f74c00">
   <img alt="Windows" src="https://img.shields.io/badge/platform-Windows-0078D4">
@@ -52,7 +52,7 @@ Download the latest Windows release binary:
 
 ```powershell
 $asset = "milner-x86_64-pc-windows-msvc.zip"
-$base = "https://github.com/AdrianParedez/keel/releases/latest/download"
+$base = "https://github.com/AdrianParedez/milner/releases/latest/download"
 
 Invoke-WebRequest "$base/$asset" -OutFile $asset
 Invoke-WebRequest "$base/$asset.sha256" -OutFile "$asset.sha256"
@@ -68,7 +68,7 @@ Expand-Archive $asset -DestinationPath .\milner
 Install from source:
 
 ```powershell
-cargo install --git https://github.com/AdrianParedez/keel --locked
+cargo install --git https://github.com/AdrianParedez/milner --locked
 milner --prompt
 ```
 
