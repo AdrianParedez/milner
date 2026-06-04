@@ -183,7 +183,7 @@ Use:
 
 Current config subset:
 
-```toml
+```ini
 [prompt]
 text = "milner> "
 
@@ -195,9 +195,11 @@ path = C:\Users\you\AppData\Roaming\milner\history.txt
 gs = git status
 ```
 
-Unknown sections and keys are rejected with a file path and line number.
-History is disabled by default. When enabled without an explicit path, history
-is written to:
+> [!IMPORTANT]
+> Unknown sections and keys are rejected with a file path and line number.
+
+*History is disabled by default.* When enabled without an explicit path, Milner
+writes history to:
 
 ```text
 %APPDATA%\milner\history.txt
