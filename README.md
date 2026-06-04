@@ -31,10 +31,10 @@ The point is to learn the lowest practical shell layer on Windows before buildin
 ## Documentation
 
 - [Win32 process runner research](docs/research/win32-process-runner.md)
+- [`windows-sys` feature research](docs/research/windows-sys-features.md)
 - [`run.exe` design](docs/design/run-exe.md)
 - [Implementation checklist](docs/checklists/process-runner-acceptance.md)
 
 ## Source Policy
 
 Use primary sources first. For this milestone that means Microsoft Learn, Rust standard library documentation, and docs.rs for the selected Win32 binding crate.
-
