@@ -2,11 +2,15 @@
 
 use std::fs;
 use std::io::Write;
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+use windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
 
 #[test]
 fn timeout_cancels_foreground_child() {
@@ -80,6 +84,36 @@ fn foreground_exit_closes_descendant_processes() {
 
     assert_eq!(output.status.code(), Some(0));
     assert!(!marker.exists());
+}
+
+#[test]
+fn ctrl_break_interrupt_cleans_up_descendant_processes() {
+    let temp = temp_dir("ctrl-break-descendant");
+    let marker = temp.join("descendant-marker.txt");
+    let script = descendant_marker_script(&marker, true);
+
+    let child = Command::new(env!("CARGO_BIN_EXE_milner"))
+        .creation_flags(CREATE_NEW_PROCESS_GROUP)
+        .args(["--no-config", "powershell", "-NoProfile", "-Command"])
+        .arg(script)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    sleep(Duration::from_millis(500));
+    let generated = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, child.id()) };
+    assert_ne!(generated, 0, "GenerateConsoleCtrlEvent failed");
+
+    let output = child.wait_with_output().unwrap();
+    sleep(Duration::from_millis(2500));
+
+    assert_eq!(output.status.code(), Some(130));
+    assert!(!marker.exists());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("foreground command interrupted by Ctrl+Break")
+    );
 }
 
 #[test]

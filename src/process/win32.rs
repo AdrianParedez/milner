@@ -6,7 +6,8 @@ use windows_sys::Win32::Foundation::{
     DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::System::Console::{
-    GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    CTRL_BREAK_EVENT, CTRL_C_EVENT, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
+    STD_OUTPUT_HANDLE, SetConsoleCtrlHandler,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -24,6 +25,7 @@ use windows_sys::Win32::System::Threading::{
 
 use super::RunError;
 use super::handles::{OwnedHandle, last_error, validate_borrowed_handle};
+use super::interrupt::{self, InterruptKind};
 
 #[derive(Clone, Copy)]
 pub struct StdioHandles {
@@ -125,6 +127,18 @@ pub fn spawn_child(
         _thread: thread,
         job,
     })
+}
+
+pub fn install_console_control_handler() -> Result<(), RunError> {
+    let installed = unsafe { SetConsoleCtrlHandler(Some(console_control_handler), 1) };
+    if installed == 0 {
+        return Err(RunError::Win32 {
+            context: "SetConsoleCtrlHandler",
+            code: last_error(),
+        });
+    }
+
+    Ok(())
 }
 
 pub fn stdio_handles() -> Result<StdioHandles, RunError> {
@@ -288,6 +302,20 @@ fn terminate_process_for_cleanup(process: HANDLE) -> Result<(), RunError> {
     }
 
     Ok(())
+}
+
+unsafe extern "system" fn console_control_handler(control: u32) -> windows_sys::core::BOOL {
+    match control {
+        CTRL_C_EVENT => {
+            interrupt::request(InterruptKind::CtrlC);
+            1
+        }
+        CTRL_BREAK_EVENT => {
+            interrupt::request(InterruptKind::CtrlBreak);
+            1
+        }
+        _ => 0,
+    }
 }
 
 struct StartupAttributeList {

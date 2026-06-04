@@ -1,6 +1,7 @@
 mod command_line;
 mod config;
 mod handles;
+mod interrupt;
 mod parser;
 mod prompt;
 mod win32;
@@ -58,6 +59,9 @@ pub enum RunError {
     Cancelled {
         timeout_ms: u32,
     },
+    Interrupted {
+        kind: interrupt::InterruptKind,
+    },
 }
 
 impl RunError {
@@ -81,7 +85,7 @@ impl RunError {
             | Self::Io { .. }
             | Self::Win32 { .. } => 125,
             Self::WaitFailed(_) | Self::UnexpectedWait(_) | Self::ExitCodeUnavailable(_) => 126,
-            Self::Cancelled { .. } => CANCELLED_EXIT_CODE as i32,
+            Self::Cancelled { .. } | Self::Interrupted { .. } => CANCELLED_EXIT_CODE as i32,
         }
     }
 }
@@ -160,6 +164,9 @@ impl std::fmt::Display for RunError {
             Self::Cancelled { timeout_ms } => {
                 write!(f, "foreground command cancelled after {timeout_ms} ms")
             }
+            Self::Interrupted { kind } => {
+                write!(f, "foreground command interrupted by {kind}")
+            }
         }
     }
 }
@@ -206,6 +213,8 @@ struct PreparedLaunch {
 }
 
 pub fn run_from_env() -> Result<u32, RunError> {
+    win32::install_console_control_handler()?;
+
     let mut args = std::env::args_os();
     let _runner = args.next();
     let mut options = ExecutionOptions::default();
@@ -482,54 +491,58 @@ impl ForegroundTask {
     }
 
     fn wait(mut self) -> Result<u32, RunError> {
-        match self.timeout_ms {
-            Some(timeout_ms) => self.wait_with_timeout(timeout_ms),
-            None => self.wait_unbounded(),
-        }
+        self.wait_foreground()
     }
 
-    fn wait_unbounded(&self) -> Result<u32, RunError> {
-        let mut status = 0;
-        for child in &self.children {
-            status = child.wait()?;
-        }
-
-        Ok(status)
-    }
-
-    fn wait_with_timeout(&mut self, timeout_ms: u32) -> Result<u32, RunError> {
-        let deadline = self.started_at + Duration::from_millis(u64::from(timeout_ms));
+    fn wait_foreground(&mut self) -> Result<u32, RunError> {
+        let deadline = self
+            .timeout_ms
+            .map(|timeout_ms| self.started_at + Duration::from_millis(u64::from(timeout_ms)));
         let mut statuses = vec![None; self.children.len()];
 
         loop {
-            let mut all_exited = true;
-            for (index, child) in self.children.iter().enumerate() {
-                if statuses[index].is_some() {
-                    continue;
-                }
-
-                match child.wait_timeout(0)? {
-                    Some(status) => statuses[index] = Some(status),
-                    None => all_exited = false,
-                }
-            }
-
-            if all_exited {
+            self.collect_exited(&mut statuses)?;
+            if statuses.iter().all(Option::is_some) {
                 return Ok(statuses.into_iter().flatten().last().unwrap_or(0));
             }
 
-            let now = Instant::now();
-            if now >= deadline {
+            if let Some(kind) = interrupt::take_pending() {
                 self.cancel_unfinished(&statuses)?;
-                return Err(RunError::Cancelled { timeout_ms });
+                return Err(RunError::Interrupted { kind });
             }
 
-            sleep(
-                deadline
-                    .saturating_duration_since(now)
-                    .min(FOREGROUND_POLL_INTERVAL),
-            );
+            if let Some(deadline) = deadline {
+                let now = Instant::now();
+                if now >= deadline {
+                    self.cancel_unfinished(&statuses)?;
+                    return Err(RunError::Cancelled {
+                        timeout_ms: self.timeout_ms.unwrap_or_default(),
+                    });
+                }
+
+                sleep(
+                    deadline
+                        .saturating_duration_since(now)
+                        .min(FOREGROUND_POLL_INTERVAL),
+                );
+            } else {
+                sleep(FOREGROUND_POLL_INTERVAL);
+            }
         }
+    }
+
+    fn collect_exited(&self, statuses: &mut [Option<u32>]) -> Result<(), RunError> {
+        for (index, child) in self.children.iter().enumerate() {
+            if statuses[index].is_some() {
+                continue;
+            }
+
+            if let Some(status) = child.wait_timeout(0)? {
+                statuses[index] = Some(status);
+            }
+        }
+
+        Ok(())
     }
 
     fn cancel_unfinished(&self, statuses: &[Option<u32>]) -> Result<(), RunError> {

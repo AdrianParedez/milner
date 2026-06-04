@@ -4,6 +4,7 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 
 use super::config::default_history_path;
+use super::interrupt;
 use super::parser::parse_execution_line;
 use super::parser::{CommandSpec, ExecutionPlan, InputSpec, OutputSpec, ParsedCommand};
 use super::{ExecutionOptions, RunError, execute_plan};
@@ -117,6 +118,11 @@ where
         }
 
         let command_line = trim_line_ending(&line);
+        if interrupt::take_pending().is_some() {
+            state.last_status = 130;
+            continue;
+        }
+
         if command_line.trim().is_empty() {
             continue;
         }
@@ -468,7 +474,8 @@ fn should_record_history(command_line: &str) -> bool {
 mod tests {
     use std::io::Cursor;
 
-    use super::super::ExecutionOptions;
+    use super::super::interrupt::{InterruptKind, request};
+    use super::super::{ExecutionOptions, interrupt};
     use super::run_prompt_with_io;
 
     #[test]
@@ -509,5 +516,25 @@ mod tests {
                 .unwrap()
                 .contains("unsupported operator `&&`")
         );
+    }
+
+    #[test]
+    fn pending_prompt_interrupt_discards_line_and_prompts_again() {
+        let mut output = Vec::new();
+        let mut errors = Vec::new();
+        request(InterruptKind::CtrlC);
+
+        let code = run_prompt_with_io(
+            Cursor::new("pwd\nexit 0\n"),
+            &mut output,
+            &mut errors,
+            ExecutionOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(code, 0);
+        assert_eq!(String::from_utf8(output).unwrap(), "milner> milner> ");
+        assert_eq!(String::from_utf8(errors).unwrap(), "");
+        assert_eq!(interrupt::take_pending(), None);
     }
 }
