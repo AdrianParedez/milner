@@ -4,8 +4,10 @@ mod parser;
 mod prompt;
 mod win32;
 
-use std::ffi::OsString;
+use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
 use std::fs::{File, OpenOptions};
+use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 
@@ -19,6 +21,16 @@ pub enum RunError {
     Usage,
     Parse(ParseError),
     InvalidExecutionPlan(&'static str),
+    InvalidCwd {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    InvalidEnvironmentName(OsString),
+    InvalidEnvironmentAssignment(OsString),
+    ExecutableNotFound {
+        program: OsString,
+        searched: Vec<PathBuf>,
+    },
     Io {
         context: &'static str,
         path: PathBuf,
@@ -44,10 +56,13 @@ impl RunError {
             Self::Usage => 2,
             Self::Parse(_) => 2,
             Self::InvalidExecutionPlan(_) => 2,
+            Self::InvalidEnvironmentName(_) | Self::InvalidEnvironmentAssignment(_) => 2,
             Self::NonUnicodeCommandLine => 2,
             Self::EmptyProgram
             | Self::InteriorNul
             | Self::UnsupportedBatchTarget
+            | Self::InvalidCwd { .. }
+            | Self::ExecutableNotFound { .. }
             | Self::InvalidHandle(_)
             | Self::Io { .. }
             | Self::Win32 { .. } => 125,
@@ -61,10 +76,39 @@ impl std::fmt::Display for RunError {
         match self {
             Self::Usage => write!(
                 f,
-                "usage: run.exe <program> <args...>\n       run.exe --line <command-line>\n       run.exe --prompt"
+                "usage: run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] <program> <args...>\n       run.exe [options] --line <command-line>\n       run.exe [options] --prompt"
             ),
             Self::Parse(err) => write!(f, "{err}"),
             Self::InvalidExecutionPlan(message) => write!(f, "{message}"),
+            Self::InvalidCwd { path, source } => {
+                write!(f, "cwd `{}` is invalid: {source}", path.display())
+            }
+            Self::InvalidEnvironmentName(name) => {
+                write!(
+                    f,
+                    "environment variable name `{}` is invalid",
+                    name.to_string_lossy()
+                )
+            }
+            Self::InvalidEnvironmentAssignment(assignment) => write!(
+                f,
+                "environment assignment `{}` must be NAME=VALUE",
+                assignment.to_string_lossy()
+            ),
+            Self::ExecutableNotFound { program, searched } => {
+                write!(
+                    f,
+                    "executable `{}` not found; searched PATH entries and did not search the current directory for bare names",
+                    program.to_string_lossy()
+                )?;
+                if !searched.is_empty() {
+                    write!(f, ":")?;
+                    for path in searched {
+                        write!(f, " {}", path.display())?;
+                    }
+                }
+                Ok(())
+            }
             Self::Io {
                 context,
                 path,
@@ -95,16 +139,76 @@ impl std::fmt::Display for RunError {
 
 impl std::error::Error for RunError {}
 
+#[derive(Clone, Debug, Default)]
+pub(super) struct ExecutionOptions {
+    cwd: Option<PathBuf>,
+    environment: EnvironmentSpec,
+}
+
+#[derive(Clone, Debug, Default)]
+struct EnvironmentSpec {
+    changes: Vec<EnvironmentChange>,
+}
+
+#[derive(Clone, Debug)]
+enum EnvironmentChange {
+    Set { name: OsString, value: OsString },
+    Unset { name: OsString },
+}
+
+struct PreparedEnvironment {
+    block: Option<Vec<u16>>,
+    lookup: BTreeMap<String, OsString>,
+}
+
+struct ResolvedCommand {
+    application_name: PathBuf,
+    argv0: OsString,
+    args: Vec<OsString>,
+}
+
+struct PreparedLaunch {
+    application_name: Vec<u16>,
+    current_directory: Option<Vec<u16>>,
+    environment: Option<Vec<u16>>,
+}
+
 pub fn run_from_env() -> Result<u32, RunError> {
     let mut args = std::env::args_os();
     let _runner = args.next();
-    let first = args.next().ok_or(RunError::Usage)?;
+    let mut options = ExecutionOptions::default();
+    let first = loop {
+        let Some(arg) = args.next() else {
+            return Err(RunError::Usage);
+        };
+
+        if arg == "--cwd" {
+            let cwd = args.next().ok_or(RunError::Usage)?;
+            options.cwd = Some(validate_cwd(PathBuf::from(cwd))?);
+            continue;
+        }
+
+        if arg == "--set-env" {
+            let assignment = args.next().ok_or(RunError::Usage)?;
+            options.environment.set(assignment)?;
+            continue;
+        }
+
+        if arg == "--unset-env" {
+            let name = args.next().ok_or(RunError::Usage)?;
+            options.environment.unset(name)?;
+            continue;
+        }
+
+        break arg;
+    };
+
     if first == "--prompt" {
         if args.next().is_some() {
             return Err(RunError::Usage);
         }
 
-        return Ok(prompt::run_prompt() as u32);
+        return Ok(prompt::run_prompt(options) as u32);
     }
 
     let command = if first == "--line" {
@@ -117,7 +221,7 @@ pub fn run_from_env() -> Result<u32, RunError> {
             .into_string()
             .map_err(|_| RunError::NonUnicodeCommandLine)?;
         let plan = parse_execution_line(&input).map_err(RunError::Parse)?;
-        return execute_plan(plan);
+        return execute_plan(plan, &options);
     } else {
         ParsedCommand {
             program: first,
@@ -125,35 +229,50 @@ pub fn run_from_env() -> Result<u32, RunError> {
         }
     };
 
-    execute_command(command)
+    execute_command(command, &options)
 }
 
-fn execute_command(command: ParsedCommand) -> Result<u32, RunError> {
-    execute_command_spec(CommandSpec {
-        command,
-        stdin: InputSpec::Inherit,
-        stdout: OutputSpec::Inherit,
-    })
+fn execute_command(command: ParsedCommand, options: &ExecutionOptions) -> Result<u32, RunError> {
+    execute_command_spec(
+        CommandSpec {
+            command,
+            stdin: InputSpec::Inherit,
+            stdout: OutputSpec::Inherit,
+        },
+        options,
+    )
 }
 
-fn execute_plan(plan: ExecutionPlan) -> Result<u32, RunError> {
+pub(super) fn execute_plan(
+    plan: ExecutionPlan,
+    options: &ExecutionOptions,
+) -> Result<u32, RunError> {
     match plan {
-        ExecutionPlan::Command(command) => execute_command_spec(command),
-        ExecutionPlan::Pipeline { left, right } => execute_pipeline(left, right),
+        ExecutionPlan::Command(command) => execute_command_spec(command, options),
+        ExecutionPlan::Pipeline { left, right } => execute_pipeline(left, right, options),
     }
 }
 
-fn execute_command_spec(command: CommandSpec) -> Result<u32, RunError> {
+fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Result<u32, RunError> {
     if command.command.program.is_empty() {
         return Err(RunError::EmptyProgram);
     }
 
-    command_line::reject_windows_batch_target(&command.command.program)?;
-    let mut command_line =
-        command_line::build_command_line(&command.command.program, &command.command.args)?;
+    let prepared_environment = prepare_environment(&options.environment)?;
+    let resolved = resolve_command(
+        &command.command,
+        options.cwd.as_deref(),
+        &prepared_environment,
+    )?;
+    let launch = prepare_launch(
+        &resolved,
+        options.cwd.as_deref(),
+        prepared_environment.block,
+    )?;
+    let mut command_line = command_line::build_command_line(&resolved.argv0, &resolved.args)?;
     let stdio = win32::stdio_handles()?;
-    let stdin_file = open_stdin_file(&command.stdin)?;
-    let stdout_file = open_stdout_file(&command.stdout)?;
+    let stdin_file = open_stdin_file(&command.stdin, options.cwd.as_deref())?;
+    let stdout_file = open_stdout_file(&command.stdout, options.cwd.as_deref())?;
     let child_stdio = win32::StdioHandles {
         stdin: stdin_file
             .as_ref()
@@ -164,10 +283,14 @@ fn execute_command_spec(command: CommandSpec) -> Result<u32, RunError> {
         stderr: stdio.stderr,
     };
 
-    win32::run_child_with_stdio(&mut command_line, child_stdio)
+    win32::run_child_with_stdio(&mut command_line, child_stdio, launch.as_config())
 }
 
-fn execute_pipeline(left: CommandSpec, right: CommandSpec) -> Result<u32, RunError> {
+fn execute_pipeline(
+    left: CommandSpec,
+    right: CommandSpec,
+    options: &ExecutionOptions,
+) -> Result<u32, RunError> {
     if left.stdout != OutputSpec::Inherit {
         return Err(RunError::InvalidExecutionPlan(
             "left pipeline command cannot redirect stdout",
@@ -184,16 +307,32 @@ fn execute_pipeline(left: CommandSpec, right: CommandSpec) -> Result<u32, RunErr
         return Err(RunError::EmptyProgram);
     }
 
-    command_line::reject_windows_batch_target(&left.command.program)?;
-    command_line::reject_windows_batch_target(&right.command.program)?;
+    let prepared_environment = prepare_environment(&options.environment)?;
+    let left_resolved =
+        resolve_command(&left.command, options.cwd.as_deref(), &prepared_environment)?;
+    let right_resolved = resolve_command(
+        &right.command,
+        options.cwd.as_deref(),
+        &prepared_environment,
+    )?;
+    let left_launch = prepare_launch(
+        &left_resolved,
+        options.cwd.as_deref(),
+        prepared_environment.block.clone(),
+    )?;
+    let right_launch = prepare_launch(
+        &right_resolved,
+        options.cwd.as_deref(),
+        prepared_environment.block,
+    )?;
 
     let mut left_line =
-        command_line::build_command_line(&left.command.program, &left.command.args)?;
+        command_line::build_command_line(&left_resolved.argv0, &left_resolved.args)?;
     let mut right_line =
-        command_line::build_command_line(&right.command.program, &right.command.args)?;
+        command_line::build_command_line(&right_resolved.argv0, &right_resolved.args)?;
     let stdio = win32::stdio_handles()?;
-    let left_stdin_file = open_stdin_file(&left.stdin)?;
-    let right_stdout_file = open_stdout_file(&right.stdout)?;
+    let left_stdin_file = open_stdin_file(&left.stdin, options.cwd.as_deref())?;
+    let right_stdout_file = open_stdout_file(&right.stdout, options.cwd.as_deref())?;
     let (pipe_read, pipe_write) = win32::create_pipe()?;
 
     let left_stdio = win32::StdioHandles {
@@ -211,16 +350,17 @@ fn execute_pipeline(left: CommandSpec, right: CommandSpec) -> Result<u32, RunErr
         stderr: stdio.stderr,
     };
 
-    let left_child = win32::spawn_child(&mut left_line, left_stdio)?;
-    let right_child = match win32::spawn_child(&mut right_line, right_stdio) {
-        Ok(child) => child,
-        Err(err) => {
-            drop(pipe_read);
-            drop(pipe_write);
-            let _ = left_child.wait();
-            return Err(err);
-        }
-    };
+    let left_child = win32::spawn_child(&mut left_line, left_stdio, left_launch.as_config())?;
+    let right_child =
+        match win32::spawn_child(&mut right_line, right_stdio, right_launch.as_config()) {
+            Ok(child) => child,
+            Err(err) => {
+                drop(pipe_read);
+                drop(pipe_write);
+                let _ = left_child.wait();
+                return Err(err);
+            }
+        };
 
     drop(pipe_read);
     drop(pipe_write);
@@ -231,17 +371,205 @@ fn execute_pipeline(left: CommandSpec, right: CommandSpec) -> Result<u32, RunErr
     right_result
 }
 
-fn open_stdin_file(spec: &InputSpec) -> Result<Option<File>, RunError> {
-    match spec {
-        InputSpec::Inherit => Ok(None),
-        InputSpec::File(path) => open_file_for_read(path).map(Some),
+impl EnvironmentSpec {
+    fn set(&mut self, assignment: OsString) -> Result<(), RunError> {
+        let Some((name, value)) = split_environment_assignment(&assignment) else {
+            return Err(RunError::InvalidEnvironmentAssignment(assignment));
+        };
+        validate_environment_name(&name)?;
+        validate_no_nul(&value)?;
+        self.changes.push(EnvironmentChange::Set { name, value });
+        Ok(())
+    }
+
+    fn unset(&mut self, name: OsString) -> Result<(), RunError> {
+        validate_environment_name(&name)?;
+        self.changes.push(EnvironmentChange::Unset { name });
+        Ok(())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.changes.is_empty()
     }
 }
 
-fn open_stdout_file(spec: &OutputSpec) -> Result<Option<File>, RunError> {
+impl PreparedLaunch {
+    fn as_config(&self) -> win32::LaunchConfig<'_> {
+        win32::LaunchConfig {
+            application_name: &self.application_name,
+            current_directory: self.current_directory.as_deref(),
+            environment: self.environment.as_deref(),
+        }
+    }
+}
+
+fn validate_cwd(path: PathBuf) -> Result<PathBuf, RunError> {
+    std::fs::canonicalize(&path).map_err(|source| RunError::InvalidCwd { path, source })
+}
+
+fn prepare_environment(spec: &EnvironmentSpec) -> Result<PreparedEnvironment, RunError> {
+    let mut lookup = BTreeMap::new();
+    for (name, value) in std::env::vars_os() {
+        lookup.insert(environment_key(&name), value);
+    }
+
+    for change in &spec.changes {
+        match change {
+            EnvironmentChange::Set { name, value } => {
+                lookup.insert(environment_key(name), value.clone());
+            }
+            EnvironmentChange::Unset { name } => {
+                lookup.remove(&environment_key(name));
+            }
+        }
+    }
+
+    let block = if spec.is_empty() {
+        None
+    } else {
+        Some(build_environment_block(&lookup)?)
+    };
+
+    Ok(PreparedEnvironment { block, lookup })
+}
+
+fn build_environment_block(lookup: &BTreeMap<String, OsString>) -> Result<Vec<u16>, RunError> {
+    let mut block = Vec::new();
+    for (name, value) in lookup {
+        validate_no_nul(OsStr::new(name))?;
+        validate_no_nul(value)?;
+        block.extend(OsStr::new(name).encode_wide());
+        block.push('=' as u16);
+        block.extend(value.encode_wide());
+        block.push(0);
+    }
+
+    block.push(0);
+    Ok(block)
+}
+
+fn resolve_command(
+    command: &ParsedCommand,
+    cwd: Option<&Path>,
+    environment: &PreparedEnvironment,
+) -> Result<ResolvedCommand, RunError> {
+    command_line::reject_windows_batch_target(&command.program)?;
+    let base_cwd = match cwd {
+        Some(path) => path.to_path_buf(),
+        None => std::env::current_dir().map_err(|source| RunError::InvalidCwd {
+            path: PathBuf::from("."),
+            source,
+        })?,
+    };
+    let application_name = if has_path_separator(&command.program) {
+        let candidate = candidate_from_path(&base_cwd, &command.program);
+        resolve_path_candidate(candidate, &command.program)?
+    } else {
+        let (resolved, paths) = resolve_bare_name(&command.program, environment)?;
+        resolved.ok_or_else(|| RunError::ExecutableNotFound {
+            program: command.program.clone(),
+            searched: paths,
+        })?
+    };
+
+    command_line::reject_windows_batch_target(application_name.as_os_str())?;
+    Ok(ResolvedCommand {
+        application_name,
+        argv0: command.program.clone(),
+        args: command.args.clone(),
+    })
+}
+
+fn resolve_path_candidate(candidate: PathBuf, program: &OsStr) -> Result<PathBuf, RunError> {
+    let searched = candidate_variants(candidate);
+    for path in &searched {
+        if is_file(path) {
+            return Ok(path.clone());
+        }
+    }
+
+    Err(RunError::ExecutableNotFound {
+        program: program.to_os_string(),
+        searched,
+    })
+}
+
+fn resolve_bare_name(
+    program: &OsStr,
+    environment: &PreparedEnvironment,
+) -> Result<(Option<PathBuf>, Vec<PathBuf>), RunError> {
+    let mut searched = Vec::new();
+    let Some(path_value) = environment.lookup.get("PATH") else {
+        return Ok((None, searched));
+    };
+
+    for directory in std::env::split_paths(path_value) {
+        let base = directory.join(program);
+        for candidate in candidate_variants(base) {
+            searched.push(candidate.clone());
+            if is_file(&candidate) {
+                return Ok((Some(candidate), searched));
+            }
+        }
+    }
+
+    Ok((None, searched))
+}
+
+fn candidate_variants(path: PathBuf) -> Vec<PathBuf> {
+    if path.extension().is_some() {
+        vec![path]
+    } else {
+        let mut exe = path.clone();
+        exe.set_extension("exe");
+        vec![path, exe]
+    }
+}
+
+fn candidate_from_path(cwd: &Path, program: &OsStr) -> PathBuf {
+    let path = PathBuf::from(program);
+    if path.is_absolute() {
+        path
+    } else {
+        cwd.join(path)
+    }
+}
+
+fn prepare_launch(
+    command: &ResolvedCommand,
+    cwd: Option<&Path>,
+    environment: Option<Vec<u16>>,
+) -> Result<PreparedLaunch, RunError> {
+    Ok(PreparedLaunch {
+        application_name: wide_null(command.application_name.as_os_str())?,
+        current_directory: cwd.map(|path| wide_null(path.as_os_str())).transpose()?,
+        environment,
+    })
+}
+
+fn open_stdin_file(spec: &InputSpec, cwd: Option<&Path>) -> Result<Option<File>, RunError> {
+    match spec {
+        InputSpec::Inherit => Ok(None),
+        InputSpec::File(path) => open_file_for_read(&resolve_io_path(path, cwd)).map(Some),
+    }
+}
+
+fn open_stdout_file(spec: &OutputSpec, cwd: Option<&Path>) -> Result<Option<File>, RunError> {
     match spec {
         OutputSpec::Inherit => Ok(None),
-        OutputSpec::File { path, append } => open_file_for_write(path, *append).map(Some),
+        OutputSpec::File { path, append } => {
+            open_file_for_write(&resolve_io_path(path, cwd), *append).map(Some)
+        }
+    }
+}
+
+fn resolve_io_path(path: &Path, cwd: Option<&Path>) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else if let Some(cwd) = cwd {
+        cwd.join(path)
+    } else {
+        path.to_path_buf()
     }
 }
 
@@ -267,4 +595,59 @@ fn open_file_for_write(path: &Path, append: bool) -> Result<File, RunError> {
         path: path.to_path_buf(),
         source,
     })
+}
+
+fn wide_null(value: &OsStr) -> Result<Vec<u16>, RunError> {
+    let encoded: Vec<u16> = value.encode_wide().collect();
+    if encoded.contains(&0) {
+        return Err(RunError::InteriorNul);
+    }
+
+    let mut output = encoded;
+    output.push(0);
+    Ok(output)
+}
+
+fn validate_environment_name(name: &OsStr) -> Result<(), RunError> {
+    validate_no_nul(name)?;
+    if name.is_empty() || name.encode_wide().any(|unit| unit == '=' as u16) {
+        return Err(RunError::InvalidEnvironmentName(name.to_os_string()));
+    }
+
+    Ok(())
+}
+
+fn validate_no_nul(value: &OsStr) -> Result<(), RunError> {
+    if value.encode_wide().any(|unit| unit == 0) {
+        Err(RunError::InteriorNul)
+    } else {
+        Ok(())
+    }
+}
+
+fn split_environment_assignment(assignment: &OsStr) -> Option<(OsString, OsString)> {
+    let encoded: Vec<u16> = assignment.encode_wide().collect();
+    let split = encoded.iter().position(|unit| *unit == '=' as u16)?;
+    if split == 0 {
+        return None;
+    }
+
+    Some((
+        OsString::from_wide(&encoded[..split]),
+        OsString::from_wide(&encoded[split + 1..]),
+    ))
+}
+
+fn environment_key(name: &OsStr) -> String {
+    name.to_string_lossy().to_uppercase()
+}
+
+fn has_path_separator(program: &OsStr) -> bool {
+    program
+        .encode_wide()
+        .any(|unit| unit == '\\' as u16 || unit == '/' as u16 || unit == ':' as u16)
+}
+
+fn is_file(path: &Path) -> bool {
+    path.metadata().is_ok_and(|metadata| metadata.is_file())
 }

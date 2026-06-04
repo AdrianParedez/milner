@@ -1,19 +1,19 @@
 use std::ffi::{OsStr, OsString};
 use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::parser::parse_execution_line;
 use super::parser::{CommandSpec, ExecutionPlan, InputSpec, OutputSpec, ParsedCommand};
-use super::{RunError, execute_plan};
+use super::{ExecutionOptions, RunError, execute_plan};
 
 const PROMPT: &str = "keel> ";
 
-pub fn run_prompt() -> i32 {
+pub fn run_prompt(options: ExecutionOptions) -> i32 {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let stderr = io::stderr();
 
-    match run_prompt_with_io(stdin.lock(), stdout.lock(), stderr.lock()) {
+    match run_prompt_with_io(stdin.lock(), stdout.lock(), stderr.lock(), options) {
         Ok(code) => code,
         Err(err) => {
             eprintln!("run: {err}");
@@ -24,15 +24,23 @@ pub fn run_prompt() -> i32 {
 
 struct PromptState {
     cwd: PathBuf,
+    execution_options: ExecutionOptions,
     last_status: i32,
     should_exit: bool,
     exit_code: i32,
 }
 
 impl PromptState {
-    fn new() -> Result<Self, io::Error> {
+    fn new(mut options: ExecutionOptions) -> Result<Self, io::Error> {
+        let cwd = match &options.cwd {
+            Some(path) => path.clone(),
+            None => std::env::current_dir()?,
+        };
+        options.cwd = Some(cwd.clone());
+
         Ok(Self {
-            cwd: std::env::current_dir()?,
+            cwd,
+            execution_options: options,
             last_status: 0,
             should_exit: false,
             exit_code: 0,
@@ -40,13 +48,18 @@ impl PromptState {
     }
 }
 
-fn run_prompt_with_io<R, W, E>(mut input: R, mut output: W, mut errors: E) -> Result<i32, io::Error>
+fn run_prompt_with_io<R, W, E>(
+    mut input: R,
+    mut output: W,
+    mut errors: E,
+    options: ExecutionOptions,
+) -> Result<i32, io::Error>
 where
     R: BufRead,
     W: Write,
     E: Write,
 {
-    let mut state = PromptState::new()?;
+    let mut state = PromptState::new(options)?;
     let mut line = String::new();
 
     loop {
@@ -95,7 +108,7 @@ where
             writeln!(errors, "run: {err}")?;
             state.last_status = err.exit_code();
         }
-        PromptPlanResult::External(plan) => match execute_plan(*plan) {
+        PromptPlanResult::External(plan) => match execute_plan(*plan, &state.execution_options) {
             Ok(code) => state.last_status = code as i32,
             Err(err) => {
                 writeln!(errors, "run: {err}")?;
@@ -124,7 +137,6 @@ enum BuiltinError {
     NonUnicodeExitCode,
     InvalidExitCode(OsString),
     ChangeDirectory { path: PathBuf, source: io::Error },
-    CurrentDirectory(io::Error),
     WriteOutput(io::Error),
     UnsupportedRedirection(&'static str),
     UnsupportedPipeline(&'static str),
@@ -137,7 +149,7 @@ impl BuiltinError {
             | Self::ExtraOperand(_)
             | Self::NonUnicodeExitCode
             | Self::InvalidExitCode(_) => 2,
-            Self::ChangeDirectory { .. } | Self::CurrentDirectory(_) | Self::WriteOutput(_) => 1,
+            Self::ChangeDirectory { .. } | Self::WriteOutput(_) => 1,
             Self::UnsupportedRedirection(_) | Self::UnsupportedPipeline(_) => 2,
         }
     }
@@ -155,7 +167,6 @@ impl std::fmt::Display for BuiltinError {
             Self::ChangeDirectory { path, source } => {
                 write!(f, "cd: cannot change to `{}`: {source}", path.display())
             }
-            Self::CurrentDirectory(err) => write!(f, "cd: cannot read current directory: {err}"),
             Self::WriteOutput(err) => write!(f, "pwd: cannot write output: {err}"),
             Self::UnsupportedRedirection(name) => {
                 write!(f, "{name}: redirection is not supported for built-ins")
@@ -259,14 +270,30 @@ fn change_directory(args: Vec<OsString>, state: &mut PromptState) -> Result<(), 
         return Err(BuiltinError::ExtraOperand("cd"));
     }
 
-    let path = PathBuf::from(path);
-    std::env::set_current_dir(&path).map_err(|source| BuiltinError::ChangeDirectory {
-        path: path.clone(),
-        source,
-    })?;
-    state.cwd = std::env::current_dir().map_err(BuiltinError::CurrentDirectory)?;
+    let requested = PathBuf::from(path);
+    let candidate = resolve_shell_path(&state.cwd, &requested);
+    state.cwd =
+        std::fs::canonicalize(&candidate).map_err(|source| BuiltinError::ChangeDirectory {
+            path: requested.clone(),
+            source,
+        })?;
+    state.execution_options.cwd = Some(state.cwd.clone());
+    if !state.cwd.is_dir() {
+        return Err(BuiltinError::ChangeDirectory {
+            path: requested,
+            source: io::Error::new(io::ErrorKind::NotADirectory, "not a directory"),
+        });
+    }
     state.last_status = 0;
     Ok(())
+}
+
+fn resolve_shell_path(cwd: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    }
 }
 
 fn print_working_directory<W>(
@@ -329,6 +356,7 @@ fn trim_line_ending(line: &str) -> &str {
 mod tests {
     use std::io::Cursor;
 
+    use super::super::ExecutionOptions;
     use super::run_prompt_with_io;
 
     #[test]
@@ -336,7 +364,13 @@ mod tests {
         let mut output = Vec::new();
         let mut errors = Vec::new();
 
-        let code = run_prompt_with_io(Cursor::new("\n"), &mut output, &mut errors).unwrap();
+        let code = run_prompt_with_io(
+            Cursor::new("\n"),
+            &mut output,
+            &mut errors,
+            ExecutionOptions::default(),
+        )
+        .unwrap();
 
         assert_eq!(code, 0);
         assert_eq!(String::from_utf8(output).unwrap(), "keel> keel> ");
@@ -348,7 +382,13 @@ mod tests {
         let mut output = Vec::new();
         let mut errors = Vec::new();
 
-        let code = run_prompt_with_io(Cursor::new("tool &&\n"), &mut output, &mut errors).unwrap();
+        let code = run_prompt_with_io(
+            Cursor::new("tool &&\n"),
+            &mut output,
+            &mut errors,
+            ExecutionOptions::default(),
+        )
+        .unwrap();
 
         assert_eq!(code, 2);
         assert_eq!(String::from_utf8(output).unwrap(), "keel> keel> ");

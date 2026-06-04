@@ -10,8 +10,9 @@ use windows_sys::Win32::System::Console::{
 };
 use windows_sys::Win32::System::Pipes::CreatePipe;
 use windows_sys::Win32::System::Threading::{
-    CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
-    GetExitCodeProcess, INFINITE, InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
+    CREATE_UNICODE_ENVIRONMENT, CreateProcessW, DeleteProcThreadAttributeList,
+    EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess, GetExitCodeProcess, INFINITE,
+    InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
     PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW,
     WaitForSingleObject,
 };
@@ -31,17 +32,26 @@ pub struct ChildProcess {
     _thread: OwnedHandle,
 }
 
+#[derive(Clone, Copy)]
+pub struct LaunchConfig<'a> {
+    pub application_name: &'a [u16],
+    pub current_directory: Option<&'a [u16]>,
+    pub environment: Option<&'a [u16]>,
+}
+
 pub fn run_child_with_stdio(
     command_line: &mut Vec<u16>,
     stdio: StdioHandles,
+    launch: LaunchConfig<'_>,
 ) -> Result<u32, RunError> {
-    let child = spawn_child(command_line, stdio)?;
+    let child = spawn_child(command_line, stdio, launch)?;
     child.wait()
 }
 
 pub fn spawn_child(
     command_line: &mut Vec<u16>,
     stdio: StdioHandles,
+    launch: LaunchConfig<'_>,
 ) -> Result<ChildProcess, RunError> {
     let child_stdin = duplicate_inheritable(stdio.stdin, "DuplicateHandle(stdin)")?;
     let child_stdout = duplicate_inheritable(stdio.stdout, "DuplicateHandle(stdout)")?;
@@ -62,16 +72,29 @@ pub fn spawn_child(
     };
     let mut process_info = PROCESS_INFORMATION::default();
 
+    let creation_flags = EXTENDED_STARTUPINFO_PRESENT
+        | if launch.environment.is_some() {
+            CREATE_UNICODE_ENVIRONMENT
+        } else {
+            0
+        };
+    let environment = launch
+        .environment
+        .map_or(null(), |block| block.as_ptr().cast());
+    let current_directory = launch
+        .current_directory
+        .map_or(null(), |directory| directory.as_ptr());
+
     let created = unsafe {
         CreateProcessW(
-            null(),
+            launch.application_name.as_ptr(),
             command_line.as_mut_ptr(),
             null(),
             null(),
             1,
-            EXTENDED_STARTUPINFO_PRESENT,
-            null(),
-            null(),
+            creation_flags,
+            environment,
+            current_directory,
             &mut startup_info as *mut STARTUPINFOEXW as *const _,
             &mut process_info,
         )

@@ -6,6 +6,7 @@ Win32 process creation.
 
 ```text
 run.exe <program> <args...>
+run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] <program> <args...>
 run.exe --line <command-line>
 run.exe --prompt
 ```
@@ -61,6 +62,22 @@ Command-line parsing supports:
 Each child receives only its intended stdin, stdout, and stderr handles. Pipeline
 support is intentionally limited to two commands until longer ownership chains
 are designed and tested.
+
+External commands are resolved before launch:
+
+- Bare executable names are searched through `PATH` only. The current directory
+  is not searched for bare names unless it is explicitly present in `PATH`.
+- Relative paths such as `.\tool.exe` resolve against the configured child
+  current directory, or against Keel's current directory when no child directory
+  is configured.
+- Absolute paths launch directly.
+- `.bat` and `.cmd` targets remain rejected.
+
+Keel passes the resolved native executable as `lpApplicationName` to
+`CreateProcessW`. `--cwd <dir>` sets the child current directory without
+changing Keel's process-global current directory. `--set-env NAME=VALUE` and
+`--unset-env NAME` build a child-only environment block instead of mutating
+Keel's process environment.
 
 ## Build And Run
 

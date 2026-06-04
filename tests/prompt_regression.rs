@@ -63,14 +63,14 @@ fn prompt_cd_affects_next_external_command() {
     let temp = temp_dir("cd-affects-child");
     let marker = temp.join("cwd_marker.txt");
     let input = format!(
-        "cd \"{}\"\npowershell -NoProfile -Command \"[System.IO.File]::WriteAllText('cwd_marker.txt',(Get-Location).Path)\"\nexit 0\n",
+        "cd \"{}\"\npowershell -NoProfile -Command \"[System.IO.File]::WriteAllText('cwd_marker.txt',[System.IO.Directory]::GetCurrentDirectory())\"\nexit 0\n",
         temp.display()
     );
     let output = run_prompt(&input);
 
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
-        fs::read_to_string(marker).unwrap(),
+        strip_extended_prefix(&fs::read_to_string(marker).unwrap()),
         temp.display().to_string()
     );
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
@@ -154,4 +154,8 @@ fn temp_dir(name: &str) -> PathBuf {
     ));
     fs::create_dir_all(&path).unwrap();
     path
+}
+
+fn strip_extended_prefix(path: &str) -> &str {
+    path.strip_prefix("\\\\?\\").unwrap_or(path)
 }
