@@ -1,15 +1,18 @@
-use std::mem::size_of;
-use std::ptr::null;
+use std::ffi::c_void;
+use std::mem::{size_of, size_of_val};
+use std::ptr::{null, null_mut};
 
 use windows_sys::Win32::Foundation::{
-    HANDLE, HANDLE_FLAG_INHERIT, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+    DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::System::Console::{
     GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateProcessW, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-    STARTUPINFOW, WaitForSingleObject,
+    CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
+    GetExitCodeProcess, INFINITE, InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
+    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW,
+    WaitForSingleObject,
 };
 
 use super::RunError;
@@ -20,17 +23,22 @@ pub fn run_child(mut command_line: Vec<u16>) -> Result<u32, RunError> {
     let stdout = get_std_handle(STD_OUTPUT_HANDLE, "GetStdHandle(STD_OUTPUT_HANDLE)")?;
     let stderr = get_std_handle(STD_ERROR_HANDLE, "GetStdHandle(STD_ERROR_HANDLE)")?;
 
-    make_inheritable(stdin, "SetHandleInformation(stdin)")?;
-    make_inheritable(stdout, "SetHandleInformation(stdout)")?;
-    make_inheritable(stderr, "SetHandleInformation(stderr)")?;
+    let child_stdin = duplicate_inheritable(stdin, "DuplicateHandle(stdin)")?;
+    let child_stdout = duplicate_inheritable(stdout, "DuplicateHandle(stdout)")?;
+    let child_stderr = duplicate_inheritable(stderr, "DuplicateHandle(stderr)")?;
+    let inherited_handles = [child_stdin.raw(), child_stdout.raw(), child_stderr.raw()];
+    let attribute_list = StartupAttributeList::new(&inherited_handles)?;
 
-    let startup_info = STARTUPINFOW {
-        cb: size_of::<STARTUPINFOW>() as u32,
-        dwFlags: STARTF_USESTDHANDLES,
-        hStdInput: stdin,
-        hStdOutput: stdout,
-        hStdError: stderr,
-        ..STARTUPINFOW::default()
+    let mut startup_info = STARTUPINFOEXW {
+        StartupInfo: windows_sys::Win32::System::Threading::STARTUPINFOW {
+            cb: size_of::<STARTUPINFOEXW>() as u32,
+            dwFlags: STARTF_USESTDHANDLES,
+            hStdInput: child_stdin.raw(),
+            hStdOutput: child_stdout.raw(),
+            hStdError: child_stderr.raw(),
+            ..windows_sys::Win32::System::Threading::STARTUPINFOW::default()
+        },
+        lpAttributeList: attribute_list.raw(),
     };
     let mut process_info = PROCESS_INFORMATION::default();
 
@@ -41,10 +49,10 @@ pub fn run_child(mut command_line: Vec<u16>) -> Result<u32, RunError> {
             null(),
             null(),
             1,
-            0,
+            EXTENDED_STARTUPINFO_PRESENT,
             null(),
             null(),
-            &startup_info,
+            &mut startup_info as *mut STARTUPINFOEXW as *const _,
             &mut process_info,
         )
     };
@@ -68,12 +76,18 @@ fn get_std_handle(handle: u32, context: &'static str) -> Result<HANDLE, RunError
     validate_borrowed_handle(raw, context)
 }
 
-fn make_inheritable(handle: HANDLE, context: &'static str) -> Result<(), RunError> {
+fn duplicate_inheritable(handle: HANDLE, context: &'static str) -> Result<OwnedHandle, RunError> {
+    let process = unsafe { GetCurrentProcess() };
+    let mut duplicate = null_mut();
     let result = unsafe {
-        windows_sys::Win32::Foundation::SetHandleInformation(
+        DuplicateHandle(
+            process,
             handle,
-            HANDLE_FLAG_INHERIT,
-            HANDLE_FLAG_INHERIT,
+            process,
+            &mut duplicate,
+            0,
+            1,
+            DUPLICATE_SAME_ACCESS,
         )
     };
 
@@ -84,7 +98,72 @@ fn make_inheritable(handle: HANDLE, context: &'static str) -> Result<(), RunErro
         });
     }
 
-    Ok(())
+    OwnedHandle::new(duplicate, context)
+}
+
+struct StartupAttributeList {
+    _storage: Vec<usize>,
+    list: LPPROC_THREAD_ATTRIBUTE_LIST,
+}
+
+impl StartupAttributeList {
+    fn new(handles: &[HANDLE]) -> Result<Self, RunError> {
+        let mut size = 0usize;
+        unsafe {
+            InitializeProcThreadAttributeList(null_mut(), 1, 0, &mut size);
+        }
+
+        let units = size.div_ceil(size_of::<usize>());
+        let mut storage = vec![0usize; units];
+        let list = storage.as_mut_ptr().cast::<c_void>();
+        let initialized = unsafe { InitializeProcThreadAttributeList(list, 1, 0, &mut size) };
+
+        if initialized == 0 {
+            return Err(RunError::Win32 {
+                context: "InitializeProcThreadAttributeList",
+                code: last_error(),
+            });
+        }
+
+        let updated = unsafe {
+            windows_sys::Win32::System::Threading::UpdateProcThreadAttribute(
+                list,
+                0,
+                PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
+                handles.as_ptr().cast::<c_void>(),
+                size_of_val(handles),
+                null_mut(),
+                null(),
+            )
+        };
+
+        if updated == 0 {
+            unsafe {
+                DeleteProcThreadAttributeList(list);
+            }
+            return Err(RunError::Win32 {
+                context: "UpdateProcThreadAttribute(PROC_THREAD_ATTRIBUTE_HANDLE_LIST)",
+                code: last_error(),
+            });
+        }
+
+        Ok(Self {
+            _storage: storage,
+            list,
+        })
+    }
+
+    fn raw(&self) -> LPPROC_THREAD_ATTRIBUTE_LIST {
+        self.list
+    }
+}
+
+impl Drop for StartupAttributeList {
+    fn drop(&mut self) {
+        unsafe {
+            DeleteProcThreadAttributeList(self.list);
+        }
+    }
 }
 
 fn wait_for_process(handle: HANDLE) -> Result<(), RunError> {

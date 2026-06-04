@@ -11,6 +11,7 @@ pub enum RunError {
     Usage,
     EmptyProgram,
     InteriorNul,
+    UnsupportedBatchTarget,
     InvalidHandle(&'static str),
     Win32 { context: &'static str, code: u32 },
     WaitFailed(u32),
@@ -24,6 +25,7 @@ impl RunError {
             Self::Usage => 2,
             Self::EmptyProgram
             | Self::InteriorNul
+            | Self::UnsupportedBatchTarget
             | Self::InvalidHandle(_)
             | Self::Win32 { .. } => 125,
             Self::WaitFailed(_) | Self::UnexpectedWait(_) | Self::ExitCodeUnavailable(_) => 126,
@@ -37,6 +39,9 @@ impl std::fmt::Display for RunError {
             Self::Usage => write!(f, "usage: run.exe <program> <args...>"),
             Self::EmptyProgram => write!(f, "program must not be empty"),
             Self::InteriorNul => write!(f, "arguments must not contain an interior null"),
+            Self::UnsupportedBatchTarget => {
+                write!(f, "batch targets are not supported")
+            }
             Self::InvalidHandle(context) => write!(f, "{context} returned an invalid handle"),
             Self::Win32 { context, code } => write!(f, "{context} failed with Win32 error {code}"),
             Self::WaitFailed(code) => {
@@ -64,6 +69,7 @@ pub fn run_from_env() -> Result<u32, RunError> {
         return Err(RunError::EmptyProgram);
     }
 
+    command_line::reject_windows_batch_target(&program)?;
     let command_line = command_line::build_command_line(&program, &child_args)?;
     run_child(command_line)
 }

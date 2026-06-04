@@ -14,6 +14,9 @@ run.exe cargo --version
 run.exe powershell -NoProfile -Command "Get-Date"
 ```
 
+Batch targets (`.bat` and `.cmd`) are intentionally rejected until Keel has a
+cmd-safe invocation policy.
+
 ## Current Milestone
 
 Build `run.exe` with direct Win32 calls:

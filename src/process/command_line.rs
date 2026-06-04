@@ -1,7 +1,20 @@
 use std::ffi::{OsStr, OsString};
 use std::os::windows::ffi::OsStrExt;
+use std::path::Path;
 
 use super::RunError;
+
+pub fn reject_windows_batch_target(program: &OsStr) -> Result<(), RunError> {
+    let Some(extension) = Path::new(program).extension() else {
+        return Ok(());
+    };
+
+    if ascii_extension_eq(extension, "bat") || ascii_extension_eq(extension, "cmd") {
+        return Err(RunError::UnsupportedBatchTarget);
+    }
+
+    Ok(())
+}
 
 pub fn build_command_line(program: &OsStr, args: &[OsString]) -> Result<Vec<u16>, RunError> {
     let mut command = Vec::new();
@@ -14,6 +27,27 @@ pub fn build_command_line(program: &OsStr, args: &[OsString]) -> Result<Vec<u16>
 
     command.push(0);
     Ok(command)
+}
+
+fn ascii_extension_eq(extension: &OsStr, expected: &str) -> bool {
+    let mut actual = extension.encode_wide();
+    let mut expected = expected.encode_utf16();
+
+    loop {
+        match (actual.next(), expected.next()) {
+            (Some(left), Some(right)) if lowercase_ascii_unit(left) == right => {}
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}
+
+fn lowercase_ascii_unit(unit: u16) -> u16 {
+    if (b'A' as u16..=b'Z' as u16).contains(&unit) {
+        unit + 32
+    } else {
+        unit
+    }
 }
 
 fn append_quoted_arg(output: &mut Vec<u16>, arg: &OsStr) -> Result<(), RunError> {
@@ -66,12 +100,19 @@ fn append_repeated(output: &mut Vec<u16>, unit: u16, count: usize) {
 mod tests {
     use std::ffi::{OsStr, OsString};
 
-    use super::build_command_line;
+    use super::{build_command_line, reject_windows_batch_target};
 
     fn command_line(program: &str, args: &[&str]) -> String {
         let args: Vec<OsString> = args.iter().map(OsString::from).collect();
         let command = build_command_line(OsStr::new(program), &args).expect("command line");
         String::from_utf16(&command[..command.len() - 1]).expect("utf16")
+    }
+
+    #[test]
+    fn rejects_batch_targets() {
+        assert!(reject_windows_batch_target(OsStr::new("script.bat")).is_err());
+        assert!(reject_windows_batch_target(OsStr::new("script.CMD")).is_err());
+        assert!(reject_windows_batch_target(OsStr::new("script.exe")).is_ok());
     }
 
     #[test]
