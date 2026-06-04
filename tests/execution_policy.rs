@@ -1,7 +1,7 @@
 #![cfg(windows)]
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -61,8 +61,8 @@ fn child_cwd_is_set_without_parent_global_directory_change() {
 
     assert_eq!(result.status.code(), Some(0));
     assert_eq!(
-        strip_extended_prefix(&fs::read_to_string(output).unwrap()),
-        temp.display().to_string()
+        normalize_existing_path(Path::new(&fs::read_to_string(output).unwrap())),
+        normalize_existing_path(&temp)
     );
     assert_eq!(std::env::current_dir().unwrap(), original);
 }
@@ -146,6 +146,11 @@ fn powershell_path() -> PathBuf {
 
 fn strip_extended_prefix(path: &str) -> &str {
     path.strip_prefix("\\\\?\\").unwrap_or(path)
+}
+
+fn normalize_existing_path(path: &Path) -> String {
+    let canonical = fs::canonicalize(path).unwrap();
+    strip_extended_prefix(&canonical.display().to_string()).to_ascii_lowercase()
 }
 
 fn temp_dir(name: &str) -> PathBuf {
