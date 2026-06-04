@@ -8,13 +8,18 @@ use windows_sys::Win32::Foundation::{
 use windows_sys::Win32::System::Console::{
     GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
 };
+use windows_sys::Win32::System::JobObjects::{
+    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+    SetInformationJobObject, TerminateJobObject,
+};
 use windows_sys::Win32::System::Pipes::CreatePipe;
 use windows_sys::Win32::System::Threading::{
-    CREATE_UNICODE_ENVIRONMENT, CreateProcessW, DeleteProcThreadAttributeList,
+    CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, CreateProcessW, DeleteProcThreadAttributeList,
     EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess, GetExitCodeProcess, INFINITE,
     InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
-    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW,
-    TerminateProcess, WaitForSingleObject,
+    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, ResumeThread, STARTF_USESTDHANDLES,
+    STARTUPINFOEXW, TerminateProcess, WaitForSingleObject,
 };
 
 use super::RunError;
@@ -30,6 +35,7 @@ pub struct StdioHandles {
 pub struct ChildProcess {
     process: OwnedHandle,
     _thread: OwnedHandle,
+    job: JobObject,
 }
 
 #[derive(Clone, Copy)]
@@ -64,6 +70,7 @@ pub fn spawn_child(
     let mut process_info = PROCESS_INFORMATION::default();
 
     let creation_flags = EXTENDED_STARTUPINFO_PRESENT
+        | CREATE_SUSPENDED
         | if launch.environment.is_some() {
             CREATE_UNICODE_ENVIRONMENT
         } else {
@@ -100,10 +107,23 @@ pub fn spawn_child(
 
     let process = OwnedHandle::new(process_info.hProcess, "CreateProcessW(hProcess)")?;
     let thread = OwnedHandle::new(process_info.hThread, "CreateProcessW(hThread)")?;
+    let job = JobObject::new()?;
+    if let Err(err) = job.assign_process(process.raw()) {
+        let _ = terminate_process_for_cleanup(process.raw());
+        let _ = wait_for_process(process.raw());
+        return Err(err);
+    }
+
+    if let Err(err) = resume_thread(thread.raw()) {
+        let _ = job.terminate(1);
+        let _ = wait_for_process(process.raw());
+        return Err(err);
+    }
 
     Ok(ChildProcess {
         process,
         _thread: thread,
+        job,
     })
 }
 
@@ -181,16 +201,93 @@ impl ChildProcess {
     }
 
     pub fn terminate(&self, exit_code: u32) -> Result<(), RunError> {
-        let terminated = unsafe { TerminateProcess(self.process.raw(), exit_code) };
-        if terminated == 0 {
+        self.job.terminate(exit_code)
+    }
+}
+
+struct JobObject {
+    handle: OwnedHandle,
+}
+
+impl JobObject {
+    fn new() -> Result<Self, RunError> {
+        let raw = unsafe { CreateJobObjectW(null(), null()) };
+        let handle = OwnedHandle::new(raw, "CreateJobObjectW")?;
+        let job = Self { handle };
+        job.set_kill_on_close()?;
+        Ok(job)
+    }
+
+    fn set_kill_on_close(&self) -> Result<(), RunError> {
+        let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+        let set = unsafe {
+            SetInformationJobObject(
+                self.handle.raw(),
+                JobObjectExtendedLimitInformation,
+                (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        };
+
+        if set == 0 {
             return Err(RunError::Win32 {
-                context: "TerminateProcess",
+                context: "SetInformationJobObject(JobObjectExtendedLimitInformation)",
                 code: last_error(),
             });
         }
 
         Ok(())
     }
+
+    fn assign_process(&self, process: HANDLE) -> Result<(), RunError> {
+        let assigned = unsafe { AssignProcessToJobObject(self.handle.raw(), process) };
+        if assigned == 0 {
+            return Err(RunError::Win32 {
+                context: "AssignProcessToJobObject",
+                code: last_error(),
+            });
+        }
+
+        Ok(())
+    }
+
+    fn terminate(&self, exit_code: u32) -> Result<(), RunError> {
+        let terminated = unsafe { TerminateJobObject(self.handle.raw(), exit_code) };
+        if terminated == 0 {
+            return Err(RunError::Win32 {
+                context: "TerminateJobObject",
+                code: last_error(),
+            });
+        }
+
+        Ok(())
+    }
+}
+
+fn resume_thread(thread: HANDLE) -> Result<(), RunError> {
+    let previous_suspend_count = unsafe { ResumeThread(thread) };
+    if previous_suspend_count == u32::MAX {
+        return Err(RunError::Win32 {
+            context: "ResumeThread",
+            code: last_error(),
+        });
+    }
+
+    Ok(())
+}
+
+fn terminate_process_for_cleanup(process: HANDLE) -> Result<(), RunError> {
+    let terminated = unsafe { TerminateProcess(process, 1) };
+    if terminated == 0 {
+        return Err(RunError::Win32 {
+            context: "TerminateProcess",
+            code: last_error(),
+        });
+    }
+
+    Ok(())
 }
 
 struct StartupAttributeList {

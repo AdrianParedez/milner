@@ -153,7 +153,7 @@ Policy shape at a glance:
 | Execution policy | Rejects unsupported operators, `.bat`, and `.cmd` targets. |
 | Handles | Gives children only intended `stdin`, `stdout`, and `stderr`. |
 | Configuration | Reads a small config subset for prompt, history, and aliases. |
-| Cancellation | Cancels foreground commands with `--timeout-ms <ms>`. |
+| Cancellation | Cancels foreground process trees with `--timeout-ms <ms>`. |
 
 <details>
 <summary><strong>More command examples</strong></summary>
@@ -278,7 +278,6 @@ GitHub Actions also uploads generated Rust HTML docs as the
 - No variables, globbing, aliases with redirection, or command substitution.
 - No background jobs.
 - No custom Ctrl+C handling.
-- No Windows Job Object process-tree cleanup yet.
 - No line editor crate, persistent completion engine, or theme system.
 
 </details>

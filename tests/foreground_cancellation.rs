@@ -4,6 +4,8 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+use std::thread::sleep;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
@@ -31,6 +33,53 @@ fn timeout_cancels_foreground_child() {
         String::from_utf8_lossy(&output.stderr)
             .contains("foreground command cancelled after 200 ms")
     );
+}
+
+#[test]
+fn timeout_cancels_descendant_processes() {
+    let temp = temp_dir("descendant-timeout");
+    let marker = temp.join("descendant-marker.txt");
+    let script = descendant_marker_script(&marker, true);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_milner"))
+        .args([
+            "--no-config",
+            "--timeout-ms",
+            "200",
+            "powershell",
+            "-NoProfile",
+            "-Command",
+        ])
+        .arg(script)
+        .output()
+        .unwrap();
+
+    sleep(Duration::from_millis(2500));
+
+    assert_eq!(output.status.code(), Some(130));
+    assert!(!marker.exists());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("foreground command cancelled after 200 ms")
+    );
+}
+
+#[test]
+fn foreground_exit_closes_descendant_processes() {
+    let temp = temp_dir("descendant-exit");
+    let marker = temp.join("descendant-marker.txt");
+    let script = descendant_marker_script(&marker, false);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_milner"))
+        .args(["--no-config", "powershell", "-NoProfile", "-Command"])
+        .arg(script)
+        .output()
+        .unwrap();
+
+    sleep(Duration::from_millis(2500));
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!marker.exists());
 }
 
 #[test]
@@ -90,6 +139,25 @@ fn run_prompt_with_args(args: &[&str], input: &str) -> Output {
 fn delayed_marker_script(marker: &Path) -> String {
     format!(
         "[System.Threading.Thread]::Sleep(5000); [System.IO.File]::WriteAllText('{}','late')",
+        powershell_single_quoted(marker)
+    )
+}
+
+fn descendant_marker_script(marker: &Path, keep_parent_alive: bool) -> String {
+    let parent_wait = if keep_parent_alive {
+        "[System.Threading.Thread]::Sleep(5000)"
+    } else {
+        "exit 0"
+    };
+    format!(
+        "$start=[System.Diagnostics.ProcessStartInfo]::new(); \
+         $start.FileName='powershell'; \
+         $start.UseShellExecute=$false; \
+         $start.ArgumentList.Add('-NoProfile'); \
+         $start.ArgumentList.Add('-Command'); \
+         $start.ArgumentList.Add(\"[System.Threading.Thread]::Sleep(1500); [System.IO.File]::WriteAllText('{}','late')\"); \
+         [System.Diagnostics.Process]::Start($start) | Out-Null; \
+         {parent_wait}",
         powershell_single_quoted(marker)
     )
 }
