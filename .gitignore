@@ -25,6 +25,8 @@ target/
 
 # Editor and OS metadata
 .vscode/
+!.vscode/
+!.vscode/extensions.json
 .idea/
 .DS_Store
 Thumbs.db
