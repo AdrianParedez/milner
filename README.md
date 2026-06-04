@@ -26,6 +26,8 @@ inheritance. Small shell syntax over accidental compatibility.
   <a href="#verification">Verification</a>
 </p>
 
+<p><em>Created by <a href="https://paredez.dev">Adrian Paredez</a>.</em></p>
+
 </div>
 
 <!-- Keep the public README practical. Longer architecture notes belong in
