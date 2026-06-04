@@ -1,4 +1,5 @@
 mod command_line;
+mod config;
 mod handles;
 mod parser;
 mod prompt;
@@ -13,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+use config::{ConfigSource, ShellConfig};
 use parser::{
     CommandSpec, ExecutionPlan, InputSpec, OutputSpec, ParseError, ParsedCommand,
     parse_execution_line,
@@ -22,6 +24,7 @@ use parser::{
 pub enum RunError {
     Usage,
     Parse(ParseError),
+    Config(config::ConfigError),
     InvalidExecutionPlan(&'static str),
     InvalidCwd {
         path: PathBuf,
@@ -30,6 +33,7 @@ pub enum RunError {
     InvalidEnvironmentName(OsString),
     InvalidEnvironmentAssignment(OsString),
     InvalidTimeout(OsString),
+    AliasCycle(Vec<String>),
     ExecutableNotFound {
         program: OsString,
         searched: Vec<PathBuf>,
@@ -61,10 +65,12 @@ impl RunError {
         match self {
             Self::Usage => 2,
             Self::Parse(_) => 2,
+            Self::Config(_) => 125,
             Self::InvalidExecutionPlan(_) => 2,
             Self::InvalidEnvironmentName(_)
             | Self::InvalidEnvironmentAssignment(_)
-            | Self::InvalidTimeout(_) => 2,
+            | Self::InvalidTimeout(_)
+            | Self::AliasCycle(_) => 2,
             Self::NonUnicodeCommandLine => 2,
             Self::EmptyProgram
             | Self::InteriorNul
@@ -85,9 +91,10 @@ impl std::fmt::Display for RunError {
         match self {
             Self::Usage => write!(
                 f,
-                "usage: run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>\n       run.exe [options] --line <command-line>\n       run.exe [options] --prompt"
+                "usage: run.exe [--no-config] [--config <file>] [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>\n       run.exe [options] --line <command-line>\n       run.exe [options] --prompt"
             ),
             Self::Parse(err) => write!(f, "{err}"),
+            Self::Config(err) => write!(f, "{err}"),
             Self::InvalidExecutionPlan(message) => write!(f, "{message}"),
             Self::InvalidCwd { path, source } => {
                 write!(f, "cwd `{}` is invalid: {source}", path.display())
@@ -109,6 +116,9 @@ impl std::fmt::Display for RunError {
                 "timeout `{}` must be a positive millisecond value",
                 value.to_string_lossy()
             ),
+            Self::AliasCycle(names) => {
+                write!(f, "alias cycle detected: {}", names.join(" -> "))
+            }
             Self::ExecutableNotFound { program, searched } => {
                 write!(
                     f,
@@ -164,6 +174,7 @@ pub(super) struct ExecutionOptions {
     cwd: Option<PathBuf>,
     environment: EnvironmentSpec,
     timeout_ms: Option<u32>,
+    config: ShellConfig,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -198,10 +209,22 @@ pub fn run_from_env() -> Result<u32, RunError> {
     let mut args = std::env::args_os();
     let _runner = args.next();
     let mut options = ExecutionOptions::default();
+    let mut config_source = ConfigSource::Default;
     let first = loop {
         let Some(arg) = args.next() else {
             return Err(RunError::Usage);
         };
+
+        if arg == "--no-config" {
+            config_source = ConfigSource::Disabled;
+            continue;
+        }
+
+        if arg == "--config" {
+            let path = args.next().ok_or(RunError::Usage)?;
+            config_source = ConfigSource::Path(PathBuf::from(path));
+            continue;
+        }
 
         if arg == "--cwd" {
             let cwd = args.next().ok_or(RunError::Usage)?;
@@ -229,6 +252,7 @@ pub fn run_from_env() -> Result<u32, RunError> {
 
         break arg;
     };
+    options.config = ShellConfig::load(config_source).map_err(RunError::Config)?;
 
     if first == "--prompt" {
         if args.next().is_some() {
@@ -275,9 +299,44 @@ pub(super) fn execute_plan(
     options: &ExecutionOptions,
 ) -> Result<u32, RunError> {
     match plan {
-        ExecutionPlan::Command(command) => execute_command_spec(command, options),
-        ExecutionPlan::Pipeline { left, right } => execute_pipeline(left, right, options),
+        ExecutionPlan::Command(command) => {
+            execute_command_spec(expand_alias(command, options)?, options)
+        }
+        ExecutionPlan::Pipeline { left, right } => execute_pipeline(
+            expand_alias(left, options)?,
+            expand_alias(right, options)?,
+            options,
+        ),
     }
+}
+
+fn expand_alias(
+    mut command: CommandSpec,
+    options: &ExecutionOptions,
+) -> Result<CommandSpec, RunError> {
+    let mut seen = Vec::new();
+
+    while let Some(name) = alias_name(&command.command).map(str::to_string) {
+        let Some(alias) = options.config.aliases.get(&name) else {
+            break;
+        };
+
+        if seen.iter().any(|seen_name| seen_name == &name) {
+            seen.push(name);
+            return Err(RunError::AliasCycle(seen));
+        }
+
+        seen.push(name);
+        let original_args = std::mem::take(&mut command.command.args);
+        command.command = alias.clone();
+        command.command.args.extend(original_args);
+    }
+
+    Ok(command)
+}
+
+fn alias_name(command: &ParsedCommand) -> Option<&str> {
+    config::os_string_to_alias_key(&command.program)
 }
 
 fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Result<u32, RunError> {

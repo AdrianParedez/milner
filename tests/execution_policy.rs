@@ -38,7 +38,7 @@ fn relative_executable_paths_resolve_against_child_cwd() {
         "--cwd",
         &temp.display().to_string(),
         "--line",
-        ".\\keel-relative-probe.exe --line \"cargo --version\"",
+        ".\\keel-relative-probe.exe --no-config --line \"cargo --version\"",
     ]);
 
     assert_eq!(output.status.code(), Some(0));
@@ -112,7 +112,7 @@ fn bare_names_do_not_search_child_cwd() {
         "--cwd",
         &temp.display().to_string(),
         "--line",
-        "keel-local-probe.exe --line \"cargo --version\"",
+        "keel-local-probe.exe --no-config --line \"cargo --version\"",
     ]);
 
     assert_eq!(output.status.code(), Some(125));
@@ -133,6 +133,7 @@ fn missing_executable_reports_resolution_policy() {
 
 fn run<const N: usize>(args: [&str; N]) -> Output {
     std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+        .arg("--no-config")
         .args(args)
         .output()
         .unwrap()

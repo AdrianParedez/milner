@@ -14,6 +14,7 @@ fn timeout_cancels_foreground_child() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_run"))
         .args([
+            "--no-config",
             "--timeout-ms",
             "200",
             "powershell",
@@ -67,6 +68,7 @@ fn prompt_recovers_after_failed_foreground_launch() {
 
 fn run_prompt_with_args(args: &[&str], input: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_run"))
+        .arg("--no-config")
         .args(args)
         .arg("--prompt")
         .stdin(Stdio::piped())

@@ -6,7 +6,7 @@ Win32 process creation.
 
 ```text
 run.exe <program> <args...>
-run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>
+run.exe [--no-config] [--config <file>] [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>
 run.exe --line <command-line>
 run.exe --prompt
 ```
@@ -20,6 +20,7 @@ run.exe powershell -NoProfile -Command "Get-Date"
 run.exe --line "cargo --version"
 run.exe --line "powershell -NoProfile -Command \"Get-Date\" > date.txt"
 run.exe --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep -Seconds 30"
+run.exe --config "%APPDATA%\keel\config.toml" --prompt
 run.exe --prompt
 ```
 
@@ -45,13 +46,14 @@ code internally, and exits cleanly on EOF.
 The prompt resolves these built-ins before external commands:
 
 - `cd <path>` changes the shell current directory.
+- `complete [prefix]` prints matching built-in and alias names without running
+  them.
 - `pwd` prints the shell current directory.
 - `exit [code]` exits the prompt with the provided code, or with the previous
   command status when no code is provided.
 
-The prompt intentionally has no line editing, history, completion, syntax
-highlighting, arbitrary-length pipelines, stderr redirection, or custom Ctrl+C
-behaviour yet.
+The prompt intentionally has no line editing, syntax highlighting,
+arbitrary-length pipelines, stderr redirection, or custom Ctrl+C behaviour yet.
 
 Command-line parsing supports:
 
@@ -87,6 +89,46 @@ handles, and returns to the prompt when running interactively. Keel does not
 install a custom Ctrl+C handler yet, and it does not claim POSIX-style job
 control or background process management. Descendant processes created by a
 child are not yet grouped or terminated with Windows Job Objects.
+
+## Configuration
+
+Keel starts without a configuration file. By default it looks for:
+
+```text
+%APPDATA%\keel\config.toml
+```
+
+Use `--config <file>` to load a specific file, or `--no-config` to ignore the
+default path. The current parser accepts a deliberately small config subset:
+
+```text
+[prompt]
+text = "keel> "
+
+[history]
+enabled = false
+path = C:\Users\you\AppData\Roaming\keel\history.txt
+
+[aliases]
+gs = git status
+```
+
+Unknown sections and keys are rejected with the config file path and line
+number. History is disabled by default. When enabled without an explicit path,
+history is written to:
+
+```text
+%APPDATA%\keel\history.txt
+```
+
+Keel avoids recording command lines containing obvious secret words such as
+`password`, `secret`, or `token`. Aliases are parsed into Keel command
+structures before execution; they cannot include redirection or pipelines, and
+they still pass through executable resolution and batch-target rejection.
+
+No configuration, history, completion, or alias dependency was added in this
+milestone. Keel keeps these behaviours local until a Windows-focused line editor
+or config-path crate is justified.
 
 ## Build And Run
 

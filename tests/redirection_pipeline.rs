@@ -99,6 +99,7 @@ fn missing_redirection_file_prevents_launch() {
 
 fn run_line(input: &str) -> Output {
     std::process::Command::new(env!("CARGO_BIN_EXE_run"))
+        .arg("--no-config")
         .arg("--line")
         .arg(input)
         .output()

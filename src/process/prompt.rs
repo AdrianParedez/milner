@@ -1,12 +1,12 @@
 use std::ffi::{OsStr, OsString};
+use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 
+use super::config::default_history_path;
 use super::parser::parse_execution_line;
 use super::parser::{CommandSpec, ExecutionPlan, InputSpec, OutputSpec, ParsedCommand};
 use super::{ExecutionOptions, RunError, execute_plan};
-
-const PROMPT: &str = "keel> ";
 
 pub fn run_prompt(options: ExecutionOptions) -> i32 {
     let stdin = io::stdin();
@@ -25,6 +25,7 @@ pub fn run_prompt(options: ExecutionOptions) -> i32 {
 struct PromptState {
     cwd: PathBuf,
     execution_options: ExecutionOptions,
+    history: Option<History>,
     last_status: i32,
     should_exit: bool,
     exit_code: i32,
@@ -37,14 +38,57 @@ impl PromptState {
             None => std::env::current_dir()?,
         };
         options.cwd = Some(cwd.clone());
+        let history = History::open(&options.config.history)?;
 
         Ok(Self {
             cwd,
             execution_options: options,
+            history,
             last_status: 0,
             should_exit: false,
             exit_code: 0,
         })
+    }
+
+    fn prompt_text(&self) -> &str {
+        &self.execution_options.config.prompt.text
+    }
+}
+
+struct History {
+    file: File,
+}
+
+impl History {
+    fn open(config: &super::config::HistoryConfig) -> Result<Option<Self>, io::Error> {
+        if !config.enabled {
+            return Ok(None);
+        }
+
+        let path = match &config.path {
+            Some(path) => path.clone(),
+            None => default_history_path().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "APPDATA is required for history")
+            })?,
+        };
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map(|file| Some(Self { file }))
+    }
+
+    fn record(&mut self, command_line: &str) -> Result<(), io::Error> {
+        if should_record_history(command_line) {
+            writeln!(self.file, "{command_line}")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -63,7 +107,7 @@ where
     let mut line = String::new();
 
     loop {
-        output.write_all(PROMPT.as_bytes())?;
+        output.write_all(state.prompt_text().as_bytes())?;
         output.flush()?;
 
         line.clear();
@@ -79,6 +123,9 @@ where
 
         match parse_execution_line(command_line) {
             Ok(plan) => {
+                if let Some(history) = &mut state.history {
+                    history.record(command_line)?;
+                }
                 run_execution_plan(plan, &mut state, &mut output, &mut errors)?;
                 if state.should_exit {
                     return Ok(state.exit_code);
@@ -244,6 +291,10 @@ where
         return BuiltinResult::Handled(print_working_directory(command.args, state, output));
     }
 
+    if command.program == OsStr::new("complete") {
+        return BuiltinResult::Handled(complete(command.args, state, output));
+    }
+
     if command.program == OsStr::new("exit") {
         return BuiltinResult::Handled(exit_prompt(command.args, state));
     }
@@ -254,6 +305,8 @@ where
 fn builtin_name(command: &ParsedCommand) -> Option<&'static str> {
     if command.program == OsStr::new("cd") {
         Some("cd")
+    } else if command.program == OsStr::new("complete") {
+        Some("complete")
     } else if command.program == OsStr::new("pwd") {
         Some("pwd")
     } else if command.program == OsStr::new("exit") {
@@ -261,6 +314,46 @@ fn builtin_name(command: &ParsedCommand) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+fn complete<W>(
+    args: Vec<OsString>,
+    state: &mut PromptState,
+    output: &mut W,
+) -> Result<(), BuiltinError>
+where
+    W: Write,
+{
+    let mut args = args.into_iter();
+    let prefix = args.next().unwrap_or_default();
+    if args.next().is_some() {
+        return Err(BuiltinError::ExtraOperand("complete"));
+    }
+
+    let Some(prefix) = prefix.to_str() else {
+        return Err(BuiltinError::ExtraOperand("complete"));
+    };
+
+    for suggestion in completion_suggestions(prefix, state) {
+        writeln!(output, "{suggestion}").map_err(BuiltinError::WriteOutput)?;
+    }
+
+    state.last_status = 0;
+    Ok(())
+}
+
+fn completion_suggestions(prefix: &str, state: &PromptState) -> Vec<String> {
+    let mut suggestions = ["cd", "complete", "exit", "pwd"]
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    suggestions.extend(state.execution_options.config.aliases.keys().cloned());
+    suggestions.sort();
+    suggestions.dedup();
+    suggestions
+        .into_iter()
+        .filter(|suggestion| suggestion.starts_with(prefix))
+        .collect()
 }
 
 fn change_directory(args: Vec<OsString>, state: &mut PromptState) -> Result<(), BuiltinError> {
@@ -350,6 +443,21 @@ fn trim_line_ending(line: &str) -> &str {
     line.strip_suffix("\r\n")
         .or_else(|| line.strip_suffix('\n'))
         .unwrap_or(line)
+}
+
+fn should_record_history(command_line: &str) -> bool {
+    let lowered = command_line.to_ascii_lowercase();
+    ![
+        "password",
+        "passwd",
+        "secret",
+        "token",
+        "apikey",
+        "api_key",
+        "credential",
+    ]
+    .iter()
+    .any(|needle| lowered.contains(needle))
 }
 
 #[cfg(test)]

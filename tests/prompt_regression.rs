@@ -126,6 +126,7 @@ fn prompt_rejects_batch_targets() {
 
 fn run_prompt(input: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_run"))
+        .arg("--no-config")
         .arg("--prompt")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
