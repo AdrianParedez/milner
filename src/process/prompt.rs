@@ -2,9 +2,9 @@ use std::ffi::{OsStr, OsString};
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
-use super::parser::ParsedCommand;
-use super::parser::parse_command_line;
-use super::{RunError, execute_command};
+use super::parser::parse_execution_line;
+use super::parser::{CommandSpec, ExecutionPlan, InputSpec, OutputSpec, ParsedCommand};
+use super::{RunError, execute_plan};
 
 const PROMPT: &str = "keel> ";
 
@@ -64,9 +64,9 @@ where
             continue;
         }
 
-        match parse_command_line(command_line) {
-            Ok(command) => {
-                run_parsed_command(command, &mut state, &mut output, &mut errors)?;
+        match parse_execution_line(command_line) {
+            Ok(plan) => {
+                run_execution_plan(plan, &mut state, &mut output, &mut errors)?;
                 if state.should_exit {
                     return Ok(state.exit_code);
                 }
@@ -79,8 +79,8 @@ where
     }
 }
 
-fn run_parsed_command<W, E>(
-    command: ParsedCommand,
+fn run_execution_plan<W, E>(
+    plan: ExecutionPlan,
     state: &mut PromptState,
     output: &mut W,
     errors: &mut E,
@@ -89,13 +89,13 @@ where
     W: Write,
     E: Write,
 {
-    match run_builtin(command, state, output) {
-        BuiltinResult::Handled(Ok(())) => {}
-        BuiltinResult::Handled(Err(err)) => {
+    match run_prompt_plan(plan, state, output) {
+        PromptPlanResult::Handled(Ok(())) => {}
+        PromptPlanResult::Handled(Err(err)) => {
             writeln!(errors, "run: {err}")?;
             state.last_status = err.exit_code();
         }
-        BuiltinResult::External(command) => match execute_command(command) {
+        PromptPlanResult::External(plan) => match execute_plan(*plan) {
             Ok(code) => state.last_status = code as i32,
             Err(err) => {
                 writeln!(errors, "run: {err}")?;
@@ -105,6 +105,11 @@ where
     }
 
     Ok(())
+}
+
+enum PromptPlanResult {
+    Handled(Result<(), BuiltinError>),
+    External(Box<ExecutionPlan>),
 }
 
 enum BuiltinResult {
@@ -121,6 +126,8 @@ enum BuiltinError {
     ChangeDirectory { path: PathBuf, source: io::Error },
     CurrentDirectory(io::Error),
     WriteOutput(io::Error),
+    UnsupportedRedirection(&'static str),
+    UnsupportedPipeline(&'static str),
 }
 
 impl BuiltinError {
@@ -131,6 +138,7 @@ impl BuiltinError {
             | Self::NonUnicodeExitCode
             | Self::InvalidExitCode(_) => 2,
             Self::ChangeDirectory { .. } | Self::CurrentDirectory(_) | Self::WriteOutput(_) => 1,
+            Self::UnsupportedRedirection(_) | Self::UnsupportedPipeline(_) => 2,
         }
     }
 }
@@ -149,11 +157,69 @@ impl std::fmt::Display for BuiltinError {
             }
             Self::CurrentDirectory(err) => write!(f, "cd: cannot read current directory: {err}"),
             Self::WriteOutput(err) => write!(f, "pwd: cannot write output: {err}"),
+            Self::UnsupportedRedirection(name) => {
+                write!(f, "{name}: redirection is not supported for built-ins")
+            }
+            Self::UnsupportedPipeline(name) => {
+                write!(f, "{name}: pipelines are not supported for built-ins")
+            }
         }
     }
 }
 
 impl std::error::Error for BuiltinError {}
+
+fn run_prompt_plan<W>(
+    plan: ExecutionPlan,
+    state: &mut PromptState,
+    output: &mut W,
+) -> PromptPlanResult
+where
+    W: Write,
+{
+    match plan {
+        ExecutionPlan::Command(command) => run_command_spec(command, state, output),
+        ExecutionPlan::Pipeline { left, right } => {
+            if let Some(name) = builtin_name(&left.command) {
+                return PromptPlanResult::Handled(Err(BuiltinError::UnsupportedPipeline(name)));
+            }
+
+            if let Some(name) = builtin_name(&right.command) {
+                return PromptPlanResult::Handled(Err(BuiltinError::UnsupportedPipeline(name)));
+            }
+
+            PromptPlanResult::External(Box::new(ExecutionPlan::Pipeline { left, right }))
+        }
+    }
+}
+
+fn run_command_spec<W>(
+    command: CommandSpec,
+    state: &mut PromptState,
+    output: &mut W,
+) -> PromptPlanResult
+where
+    W: Write,
+{
+    let Some(name) = builtin_name(&command.command) else {
+        return PromptPlanResult::External(Box::new(ExecutionPlan::Command(command)));
+    };
+
+    if command.stdin != InputSpec::Inherit || command.stdout != OutputSpec::Inherit {
+        return PromptPlanResult::Handled(Err(BuiltinError::UnsupportedRedirection(name)));
+    }
+
+    match run_builtin(command.command, state, output) {
+        BuiltinResult::Handled(result) => PromptPlanResult::Handled(result),
+        BuiltinResult::External(command) => {
+            PromptPlanResult::External(Box::new(ExecutionPlan::Command(CommandSpec {
+                command,
+                stdin: InputSpec::Inherit,
+                stdout: OutputSpec::Inherit,
+            })))
+        }
+    }
+}
 
 fn run_builtin<W>(command: ParsedCommand, state: &mut PromptState, output: &mut W) -> BuiltinResult
 where
@@ -172,6 +238,18 @@ where
     }
 
     BuiltinResult::External(command)
+}
+
+fn builtin_name(command: &ParsedCommand) -> Option<&'static str> {
+    if command.program == OsStr::new("cd") {
+        Some("cd")
+    } else if command.program == OsStr::new("pwd") {
+        Some("pwd")
+    } else if command.program == OsStr::new("exit") {
+        Some("exit")
+    } else {
+        None
+    }
 }
 
 fn change_directory(args: Vec<OsString>, state: &mut PromptState) -> Result<(), BuiltinError> {
@@ -270,14 +348,14 @@ mod tests {
         let mut output = Vec::new();
         let mut errors = Vec::new();
 
-        let code = run_prompt_with_io(Cursor::new("tool |\n"), &mut output, &mut errors).unwrap();
+        let code = run_prompt_with_io(Cursor::new("tool &&\n"), &mut output, &mut errors).unwrap();
 
         assert_eq!(code, 2);
         assert_eq!(String::from_utf8(output).unwrap(), "keel> keel> ");
         assert!(
             String::from_utf8(errors)
                 .unwrap()
-                .contains("unsupported operator `|`")
+                .contains("unsupported operator `&&`")
         );
     }
 }

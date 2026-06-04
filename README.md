@@ -17,6 +17,7 @@ run.exe notepad.exe
 run.exe cargo --version
 run.exe powershell -NoProfile -Command "Get-Date"
 run.exe --line "cargo --version"
+run.exe --line "powershell -NoProfile -Command \"Get-Date\" > date.txt"
 run.exe --prompt
 ```
 
@@ -47,7 +48,19 @@ The prompt resolves these built-ins before external commands:
   command status when no code is provided.
 
 The prompt intentionally has no line editing, history, completion, syntax
-highlighting, pipelines, redirection, or custom Ctrl+C behaviour yet.
+highlighting, arbitrary-length pipelines, stderr redirection, or custom Ctrl+C
+behaviour yet.
+
+Command-line parsing supports:
+
+- `>` to redirect stdout and replace the target file.
+- `>>` to redirect stdout and append to the target file.
+- `<` to read stdin from a file.
+- `|` to connect exactly two external commands.
+
+Each child receives only its intended stdin, stdout, and stderr handles. Pipeline
+support is intentionally limited to two commands until longer ownership chains
+are designed and tested.
 
 ## Build And Run
 

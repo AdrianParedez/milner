@@ -110,6 +110,40 @@ fn child_process_does_not_receive_unrelated_inheritable_handles() {
     assert_eq!(fs::read_to_string(&marker).unwrap(), "");
 }
 
+#[test]
+fn pipeline_children_do_not_receive_unrelated_inheritable_handles() {
+    let temp = temp_dir("pipeline-handle-list");
+    let marker = temp.join("leaked_pipeline_handle.txt");
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .read(true)
+        .write(true)
+        .open(&marker)
+        .unwrap();
+    let inherited = duplicate_inheritable(file.as_raw_handle() as HANDLE);
+
+    let probe = format!(
+        "try {{ $h=[IntPtr]::new({}); $sfh=[Microsoft.Win32.SafeHandles.SafeFileHandle]::new($h,$false); $fs=[System.IO.FileStream]::new($sfh,[System.IO.FileAccess]::Write); $b=[System.Text.Encoding]::UTF8.GetBytes('LEAKED'); $fs.Write($b,0,$b.Length); $fs.Flush(); exit 7 }} catch {{ $input | Out-Null; exit 0 }}",
+        inherited as usize
+    );
+    let line = format!(
+        "powershell -NoProfile -Command \"[Console]::Out.Write('x')\" | powershell -NoProfile -Command \"{probe}\""
+    );
+    let status = spawn_run_with_inheritance(
+        OsStr::new(env!("CARGO_BIN_EXE_run")),
+        &[OsString::from("--line"), OsString::from(line)],
+    );
+
+    unsafe {
+        CloseHandle(inherited);
+    }
+    drop(file);
+
+    assert_eq!(status, 0);
+    assert_eq!(fs::read_to_string(&marker).unwrap(), "");
+}
+
 fn temp_dir(name: &str) -> PathBuf {
     let suffix = SystemTime::now()
         .duration_since(UNIX_EPOCH)

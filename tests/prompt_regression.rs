@@ -97,10 +97,10 @@ fn prompt_reports_invalid_cd_paths() {
 
 #[test]
 fn prompt_recovers_from_parser_errors() {
-    let output = run_prompt("tool |\npowershell -NoProfile -Command \"exit 0\"\n");
+    let output = run_prompt("tool &&\npowershell -NoProfile -Command \"exit 0\"\n");
 
     assert_eq!(output.status.code(), Some(0));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("unsupported operator `|`"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unsupported operator `&&`"));
 }
 
 #[test]

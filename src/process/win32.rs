@@ -8,6 +8,7 @@ use windows_sys::Win32::Foundation::{
 use windows_sys::Win32::System::Console::{
     GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
 };
+use windows_sys::Win32::System::Pipes::CreatePipe;
 use windows_sys::Win32::System::Threading::{
     CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
     GetExitCodeProcess, INFINITE, InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
@@ -18,14 +19,33 @@ use windows_sys::Win32::System::Threading::{
 use super::RunError;
 use super::handles::{OwnedHandle, last_error, validate_borrowed_handle};
 
-pub fn run_child(mut command_line: Vec<u16>) -> Result<u32, RunError> {
-    let stdin = get_std_handle(STD_INPUT_HANDLE, "GetStdHandle(STD_INPUT_HANDLE)")?;
-    let stdout = get_std_handle(STD_OUTPUT_HANDLE, "GetStdHandle(STD_OUTPUT_HANDLE)")?;
-    let stderr = get_std_handle(STD_ERROR_HANDLE, "GetStdHandle(STD_ERROR_HANDLE)")?;
+#[derive(Clone, Copy)]
+pub struct StdioHandles {
+    pub stdin: HANDLE,
+    pub stdout: HANDLE,
+    pub stderr: HANDLE,
+}
 
-    let child_stdin = duplicate_inheritable(stdin, "DuplicateHandle(stdin)")?;
-    let child_stdout = duplicate_inheritable(stdout, "DuplicateHandle(stdout)")?;
-    let child_stderr = duplicate_inheritable(stderr, "DuplicateHandle(stderr)")?;
+pub struct ChildProcess {
+    process: OwnedHandle,
+    _thread: OwnedHandle,
+}
+
+pub fn run_child_with_stdio(
+    command_line: &mut Vec<u16>,
+    stdio: StdioHandles,
+) -> Result<u32, RunError> {
+    let child = spawn_child(command_line, stdio)?;
+    child.wait()
+}
+
+pub fn spawn_child(
+    command_line: &mut Vec<u16>,
+    stdio: StdioHandles,
+) -> Result<ChildProcess, RunError> {
+    let child_stdin = duplicate_inheritable(stdio.stdin, "DuplicateHandle(stdin)")?;
+    let child_stdout = duplicate_inheritable(stdio.stdout, "DuplicateHandle(stdout)")?;
+    let child_stderr = duplicate_inheritable(stdio.stderr, "DuplicateHandle(stderr)")?;
     let inherited_handles = [child_stdin.raw(), child_stdout.raw(), child_stderr.raw()];
     let attribute_list = StartupAttributeList::new(&inherited_handles)?;
 
@@ -65,10 +85,42 @@ pub fn run_child(mut command_line: Vec<u16>) -> Result<u32, RunError> {
     }
 
     let process = OwnedHandle::new(process_info.hProcess, "CreateProcessW(hProcess)")?;
-    let _thread = OwnedHandle::new(process_info.hThread, "CreateProcessW(hThread)")?;
+    let thread = OwnedHandle::new(process_info.hThread, "CreateProcessW(hThread)")?;
 
-    wait_for_process(process.raw())?;
-    child_exit_code(process.raw())
+    Ok(ChildProcess {
+        process,
+        _thread: thread,
+    })
+}
+
+pub fn stdio_handles() -> Result<StdioHandles, RunError> {
+    let stdin = get_std_handle(STD_INPUT_HANDLE, "GetStdHandle(STD_INPUT_HANDLE)")?;
+    let stdout = get_std_handle(STD_OUTPUT_HANDLE, "GetStdHandle(STD_OUTPUT_HANDLE)")?;
+    let stderr = get_std_handle(STD_ERROR_HANDLE, "GetStdHandle(STD_ERROR_HANDLE)")?;
+
+    Ok(StdioHandles {
+        stdin,
+        stdout,
+        stderr,
+    })
+}
+
+pub fn create_pipe() -> Result<(OwnedHandle, OwnedHandle), RunError> {
+    let mut read = null_mut();
+    let mut write = null_mut();
+    let created = unsafe { CreatePipe(&mut read, &mut write, null(), 0) };
+
+    if created == 0 {
+        return Err(RunError::Win32 {
+            context: "CreatePipe",
+            code: last_error(),
+        });
+    }
+
+    Ok((
+        OwnedHandle::new(read, "CreatePipe(read)")?,
+        OwnedHandle::new(write, "CreatePipe(write)")?,
+    ))
 }
 
 fn get_std_handle(handle: u32, context: &'static str) -> Result<HANDLE, RunError> {
@@ -99,6 +151,13 @@ fn duplicate_inheritable(handle: HANDLE, context: &'static str) -> Result<OwnedH
     }
 
     OwnedHandle::new(duplicate, context)
+}
+
+impl ChildProcess {
+    pub fn wait(&self) -> Result<u32, RunError> {
+        wait_for_process(self.process.raw())?;
+        child_exit_code(self.process.raw())
+    }
 }
 
 struct StartupAttributeList {
