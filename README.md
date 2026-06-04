@@ -46,3 +46,10 @@ cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 ```
+
+Optional combined test runner:
+
+```text
+cargo install cargo-make cargo-nextest
+cargo make verify-tests
+```

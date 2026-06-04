@@ -1,0 +1,10 @@
+[tasks.test-cargo]
+command = "cargo"
+args = ["test"]
+
+[tasks.test-nextest]
+command = "cargo"
+args = ["nextest", "run"]
+
+[tasks.verify-tests]
+run_task = { name = ["test-cargo", "test-nextest"] }
