@@ -6,7 +6,7 @@ Win32 process creation.
 
 ```text
 run.exe <program> <args...>
-run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] <program> <args...>
+run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>
 run.exe --line <command-line>
 run.exe --prompt
 ```
@@ -19,6 +19,7 @@ run.exe cargo --version
 run.exe powershell -NoProfile -Command "Get-Date"
 run.exe --line "cargo --version"
 run.exe --line "powershell -NoProfile -Command \"Get-Date\" > date.txt"
+run.exe --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep -Seconds 30"
 run.exe --prompt
 ```
 
@@ -78,6 +79,14 @@ Keel passes the resolved native executable as `lpApplicationName` to
 changing Keel's process-global current directory. `--set-env NAME=VALUE` and
 `--unset-env NAME` build a child-only environment block instead of mutating
 Keel's process environment.
+
+`--timeout-ms <ms>` applies to each foreground external command or two-command
+pipeline. If the timeout expires, Keel terminates unfinished direct foreground
+children, records status `130`, reports the cancellation, closes its process
+handles, and returns to the prompt when running interactively. Keel does not
+install a custom Ctrl+C handler yet, and it does not claim POSIX-style job
+control or background process management. Descendant processes created by a
+child are not yet grouped or terminated with Windows Job Objects.
 
 ## Build And Run
 

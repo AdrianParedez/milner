@@ -14,7 +14,7 @@ use windows_sys::Win32::System::Threading::{
     EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess, GetExitCodeProcess, INFINITE,
     InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
     PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW,
-    WaitForSingleObject,
+    TerminateProcess, WaitForSingleObject,
 };
 
 use super::RunError;
@@ -37,15 +37,6 @@ pub struct LaunchConfig<'a> {
     pub application_name: &'a [u16],
     pub current_directory: Option<&'a [u16]>,
     pub environment: Option<&'a [u16]>,
-}
-
-pub fn run_child_with_stdio(
-    command_line: &mut Vec<u16>,
-    stdio: StdioHandles,
-    launch: LaunchConfig<'_>,
-) -> Result<u32, RunError> {
-    let child = spawn_child(command_line, stdio, launch)?;
-    child.wait()
 }
 
 pub fn spawn_child(
@@ -181,6 +172,25 @@ impl ChildProcess {
         wait_for_process(self.process.raw())?;
         child_exit_code(self.process.raw())
     }
+
+    pub fn wait_timeout(&self, timeout_ms: u32) -> Result<Option<u32>, RunError> {
+        match wait_for_process_timeout(self.process.raw(), timeout_ms)? {
+            WaitOutcome::Exited => child_exit_code(self.process.raw()).map(Some),
+            WaitOutcome::StillRunning => Ok(None),
+        }
+    }
+
+    pub fn terminate(&self, exit_code: u32) -> Result<(), RunError> {
+        let terminated = unsafe { TerminateProcess(self.process.raw(), exit_code) };
+        if terminated == 0 {
+            return Err(RunError::Win32 {
+                context: "TerminateProcess",
+                code: last_error(),
+            });
+        }
+
+        Ok(())
+    }
 }
 
 struct StartupAttributeList {
@@ -249,11 +259,23 @@ impl Drop for StartupAttributeList {
 }
 
 fn wait_for_process(handle: HANDLE) -> Result<(), RunError> {
-    let status = unsafe { WaitForSingleObject(handle, INFINITE) };
+    match wait_for_process_timeout(handle, INFINITE)? {
+        WaitOutcome::Exited => Ok(()),
+        WaitOutcome::StillRunning => Err(RunError::UnexpectedWait(WAIT_TIMEOUT)),
+    }
+}
+
+enum WaitOutcome {
+    Exited,
+    StillRunning,
+}
+
+fn wait_for_process_timeout(handle: HANDLE, timeout_ms: u32) -> Result<WaitOutcome, RunError> {
+    let status = unsafe { WaitForSingleObject(handle, timeout_ms) };
     match status {
-        WAIT_OBJECT_0 => Ok(()),
+        WAIT_OBJECT_0 => Ok(WaitOutcome::Exited),
+        WAIT_TIMEOUT => Ok(WaitOutcome::StillRunning),
         WAIT_FAILED => Err(RunError::WaitFailed(last_error())),
-        WAIT_TIMEOUT => Err(RunError::UnexpectedWait(WAIT_TIMEOUT)),
         other => Err(RunError::UnexpectedWait(other)),
     }
 }

@@ -10,6 +10,8 @@ use std::fs::{File, OpenOptions};
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 
 use parser::{
     CommandSpec, ExecutionPlan, InputSpec, OutputSpec, ParseError, ParsedCommand,
@@ -27,6 +29,7 @@ pub enum RunError {
     },
     InvalidEnvironmentName(OsString),
     InvalidEnvironmentAssignment(OsString),
+    InvalidTimeout(OsString),
     ExecutableNotFound {
         program: OsString,
         searched: Vec<PathBuf>,
@@ -48,6 +51,9 @@ pub enum RunError {
     WaitFailed(u32),
     UnexpectedWait(u32),
     ExitCodeUnavailable(u32),
+    Cancelled {
+        timeout_ms: u32,
+    },
 }
 
 impl RunError {
@@ -56,7 +62,9 @@ impl RunError {
             Self::Usage => 2,
             Self::Parse(_) => 2,
             Self::InvalidExecutionPlan(_) => 2,
-            Self::InvalidEnvironmentName(_) | Self::InvalidEnvironmentAssignment(_) => 2,
+            Self::InvalidEnvironmentName(_)
+            | Self::InvalidEnvironmentAssignment(_)
+            | Self::InvalidTimeout(_) => 2,
             Self::NonUnicodeCommandLine => 2,
             Self::EmptyProgram
             | Self::InteriorNul
@@ -67,6 +75,7 @@ impl RunError {
             | Self::Io { .. }
             | Self::Win32 { .. } => 125,
             Self::WaitFailed(_) | Self::UnexpectedWait(_) | Self::ExitCodeUnavailable(_) => 126,
+            Self::Cancelled { .. } => CANCELLED_EXIT_CODE as i32,
         }
     }
 }
@@ -76,7 +85,7 @@ impl std::fmt::Display for RunError {
         match self {
             Self::Usage => write!(
                 f,
-                "usage: run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] <program> <args...>\n       run.exe [options] --line <command-line>\n       run.exe [options] --prompt"
+                "usage: run.exe [--cwd <dir>] [--set-env NAME=VALUE] [--unset-env NAME] [--timeout-ms <ms>] <program> <args...>\n       run.exe [options] --line <command-line>\n       run.exe [options] --prompt"
             ),
             Self::Parse(err) => write!(f, "{err}"),
             Self::InvalidExecutionPlan(message) => write!(f, "{message}"),
@@ -94,6 +103,11 @@ impl std::fmt::Display for RunError {
                 f,
                 "environment assignment `{}` must be NAME=VALUE",
                 assignment.to_string_lossy()
+            ),
+            Self::InvalidTimeout(value) => write!(
+                f,
+                "timeout `{}` must be a positive millisecond value",
+                value.to_string_lossy()
             ),
             Self::ExecutableNotFound { program, searched } => {
                 write!(
@@ -133,16 +147,23 @@ impl std::fmt::Display for RunError {
             Self::ExitCodeUnavailable(code) => {
                 write!(f, "GetExitCodeProcess failed with Win32 error {code}")
             }
+            Self::Cancelled { timeout_ms } => {
+                write!(f, "foreground command cancelled after {timeout_ms} ms")
+            }
         }
     }
 }
 
 impl std::error::Error for RunError {}
 
+const CANCELLED_EXIT_CODE: u32 = 130;
+const FOREGROUND_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct ExecutionOptions {
     cwd: Option<PathBuf>,
     environment: EnvironmentSpec,
+    timeout_ms: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -197,6 +218,12 @@ pub fn run_from_env() -> Result<u32, RunError> {
         if arg == "--unset-env" {
             let name = args.next().ok_or(RunError::Usage)?;
             options.environment.unset(name)?;
+            continue;
+        }
+
+        if arg == "--timeout-ms" {
+            let value = args.next().ok_or(RunError::Usage)?;
+            options.timeout_ms = Some(parse_timeout_ms(value)?);
             continue;
         }
 
@@ -283,7 +310,8 @@ fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Res
         stderr: stdio.stderr,
     };
 
-    win32::run_child_with_stdio(&mut command_line, child_stdio, launch.as_config())
+    let child = win32::spawn_child(&mut command_line, child_stdio, launch.as_config())?;
+    ForegroundTask::new(vec![child], options.timeout_ms).wait()
 }
 
 fn execute_pipeline(
@@ -357,6 +385,7 @@ fn execute_pipeline(
             Err(err) => {
                 drop(pipe_read);
                 drop(pipe_write);
+                let _ = left_child.terminate(CANCELLED_EXIT_CODE);
                 let _ = left_child.wait();
                 return Err(err);
             }
@@ -365,10 +394,105 @@ fn execute_pipeline(
     drop(pipe_read);
     drop(pipe_write);
 
-    let left_result = left_child.wait();
-    let right_result = right_child.wait();
-    left_result?;
-    right_result
+    ForegroundTask::new(vec![left_child, right_child], options.timeout_ms).wait()
+}
+
+struct ForegroundTask {
+    children: Vec<win32::ChildProcess>,
+    timeout_ms: Option<u32>,
+    started_at: Instant,
+}
+
+impl ForegroundTask {
+    fn new(children: Vec<win32::ChildProcess>, timeout_ms: Option<u32>) -> Self {
+        Self {
+            children,
+            timeout_ms,
+            started_at: Instant::now(),
+        }
+    }
+
+    fn wait(mut self) -> Result<u32, RunError> {
+        match self.timeout_ms {
+            Some(timeout_ms) => self.wait_with_timeout(timeout_ms),
+            None => self.wait_unbounded(),
+        }
+    }
+
+    fn wait_unbounded(&self) -> Result<u32, RunError> {
+        let mut status = 0;
+        for child in &self.children {
+            status = child.wait()?;
+        }
+
+        Ok(status)
+    }
+
+    fn wait_with_timeout(&mut self, timeout_ms: u32) -> Result<u32, RunError> {
+        let deadline = self.started_at + Duration::from_millis(u64::from(timeout_ms));
+        let mut statuses = vec![None; self.children.len()];
+
+        loop {
+            let mut all_exited = true;
+            for (index, child) in self.children.iter().enumerate() {
+                if statuses[index].is_some() {
+                    continue;
+                }
+
+                match child.wait_timeout(0)? {
+                    Some(status) => statuses[index] = Some(status),
+                    None => all_exited = false,
+                }
+            }
+
+            if all_exited {
+                return Ok(statuses.into_iter().flatten().last().unwrap_or(0));
+            }
+
+            let now = Instant::now();
+            if now >= deadline {
+                self.cancel_unfinished(&statuses)?;
+                return Err(RunError::Cancelled { timeout_ms });
+            }
+
+            sleep(
+                deadline
+                    .saturating_duration_since(now)
+                    .min(FOREGROUND_POLL_INTERVAL),
+            );
+        }
+    }
+
+    fn cancel_unfinished(&self, statuses: &[Option<u32>]) -> Result<(), RunError> {
+        let mut first_error = None;
+
+        for (child, status) in self.children.iter().zip(statuses) {
+            if status.is_some() {
+                continue;
+            }
+
+            if child.wait_timeout(0)?.is_none()
+                && let Err(err) = child.terminate(CANCELLED_EXIT_CODE)
+                && first_error.is_none()
+            {
+                first_error = Some(err);
+            }
+        }
+
+        for (child, status) in self.children.iter().zip(statuses) {
+            if status.is_none()
+                && let Err(err) = child.wait()
+                && first_error.is_none()
+            {
+                first_error = Some(err);
+            }
+        }
+
+        match first_error {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
+    }
 }
 
 impl EnvironmentSpec {
@@ -401,6 +525,21 @@ impl PreparedLaunch {
             environment: self.environment.as_deref(),
         }
     }
+}
+
+fn parse_timeout_ms(value: OsString) -> Result<u32, RunError> {
+    let Some(text) = value.to_str() else {
+        return Err(RunError::InvalidTimeout(value));
+    };
+
+    let parsed = text
+        .parse::<u32>()
+        .map_err(|_| RunError::InvalidTimeout(value.clone()))?;
+    if parsed == 0 {
+        return Err(RunError::InvalidTimeout(value));
+    }
+
+    Ok(parsed)
 }
 
 fn validate_cwd(path: PathBuf) -> Result<PathBuf, RunError> {
