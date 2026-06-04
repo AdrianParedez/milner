@@ -5,6 +5,9 @@ PROJECT_NOTE.md
 .agents/
 .codex/
 
+# Internal research, planning, and generated project notes
+docs/
+
 # Generated research and browser artifacts
 output/
 .playwright-cli/
