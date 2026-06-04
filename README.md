@@ -50,7 +50,13 @@ bounded execution, and process interaction.
 
 ## Install
 
-Download the latest Windows release binary:
+Install the latest Windows release binary:
+
+```powershell
+irm https://paredez.dev/install.ps1 | iex
+```
+
+Download and verify the latest Windows release binary manually:
 
 ```powershell
 $asset = "milner-x86_64-pc-windows-msvc.zip"
