@@ -21,6 +21,7 @@ pub struct CommandSpec {
     pub command: ParsedCommand,
     pub stdin: InputSpec,
     pub stdout: OutputSpec,
+    pub stderr: OutputSpec,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +53,7 @@ pub enum ParseErrorKind {
     MultiplePipelines,
     DuplicateStdin,
     DuplicateStdout,
+    DuplicateStderr,
     UnexpectedOperator(RedirectionOperator),
 }
 
@@ -69,6 +71,8 @@ pub enum RedirectionOperator {
     Stdin,
     StdoutTruncate,
     StdoutAppend,
+    StderrTruncate,
+    StderrAppend,
     Pipe,
 }
 
@@ -104,6 +108,7 @@ impl std::fmt::Display for ParseErrorKind {
             Self::MultiplePipelines => write!(f, "only one pipeline is supported"),
             Self::DuplicateStdin => write!(f, "stdin redirection is already set"),
             Self::DuplicateStdout => write!(f, "stdout redirection is already set"),
+            Self::DuplicateStderr => write!(f, "stderr redirection is already set"),
             Self::UnexpectedOperator(operator) => write!(f, "unexpected operator `{operator}`"),
         }
     }
@@ -127,6 +132,8 @@ impl std::fmt::Display for RedirectionOperator {
             Self::Stdin => write!(f, "<"),
             Self::StdoutTruncate => write!(f, ">"),
             Self::StdoutAppend => write!(f, ">>"),
+            Self::StderrTruncate => write!(f, "2>"),
+            Self::StderrAppend => write!(f, "2>>"),
             Self::Pipe => write!(f, "|"),
         }
     }
@@ -193,6 +200,7 @@ fn parse_command_spec(tokens: &[Token], token_offset: usize) -> Result<CommandSp
     let mut words = Vec::new();
     let mut stdin = InputSpec::Inherit;
     let mut stdout = OutputSpec::Inherit;
+    let mut stderr = OutputSpec::Inherit;
     let mut index = 0usize;
 
     while let Some(token) = tokens.get(index) {
@@ -229,6 +237,21 @@ fn parse_command_spec(tokens: &[Token], token_offset: usize) -> Result<CommandSp
                     };
                     index += 2;
                 }
+                RedirectionOperator::StderrTruncate | RedirectionOperator::StderrAppend => {
+                    if stderr != OutputSpec::Inherit {
+                        return Err(ParseError {
+                            kind: ParseErrorKind::DuplicateStderr,
+                            position: *position,
+                        });
+                    }
+
+                    let path = redirection_target(tokens, index + 1, *kind, *position)?;
+                    stderr = OutputSpec::File {
+                        path,
+                        append: *kind == RedirectionOperator::StderrAppend,
+                    };
+                    index += 2;
+                }
                 RedirectionOperator::Pipe => {
                     return Err(ParseError {
                         kind: ParseErrorKind::UnexpectedOperator(*kind),
@@ -252,6 +275,7 @@ fn parse_command_spec(tokens: &[Token], token_offset: usize) -> Result<CommandSp
         command: ParsedCommand { program, args },
         stdin,
         stdout,
+        stderr,
     })
 }
 
@@ -433,7 +457,11 @@ impl<'a> Parser<'a> {
 
     fn redirection_operator_at_cursor(&self) -> Option<RedirectionOperator> {
         let rest = &self.input[self.cursor..];
-        if rest.starts_with(">>") {
+        if rest.starts_with("2>>") {
+            Some(RedirectionOperator::StderrAppend)
+        } else if rest.starts_with("2>") {
+            Some(RedirectionOperator::StderrTruncate)
+        } else if rest.starts_with(">>") {
             Some(RedirectionOperator::StdoutAppend)
         } else {
             match rest.chars().next()? {
@@ -447,7 +475,9 @@ impl<'a> Parser<'a> {
 
     fn advance_operator(&mut self, operator: RedirectionOperator) {
         let width = match operator {
+            RedirectionOperator::StderrAppend => 3,
             RedirectionOperator::StdoutAppend => 2,
+            RedirectionOperator::StderrTruncate => 2,
             RedirectionOperator::Stdin
             | RedirectionOperator::StdoutTruncate
             | RedirectionOperator::Pipe => 1,
@@ -496,6 +526,7 @@ mod tests {
 
         assert_eq!(command.stdin, InputSpec::Inherit);
         assert_eq!(command.stdout, OutputSpec::Inherit);
+        assert_eq!(command.stderr, OutputSpec::Inherit);
         command.command
     }
 
@@ -504,6 +535,7 @@ mod tests {
             command: parsed(program, args),
             stdin: InputSpec::Inherit,
             stdout: OutputSpec::Inherit,
+            stderr: OutputSpec::Inherit,
         }
     }
 
@@ -651,6 +683,34 @@ mod tests {
     }
 
     #[test]
+    fn parses_stderr_truncate_redirection() {
+        let mut expected = command_spec("tool", &["arg"]);
+        expected.stderr = OutputSpec::File {
+            path: PathBuf::from("err.txt"),
+            append: false,
+        };
+
+        assert_eq!(
+            parse_execution_line("tool arg 2> err.txt").unwrap(),
+            ExecutionPlan::Command(expected)
+        );
+    }
+
+    #[test]
+    fn parses_stderr_append_redirection() {
+        let mut expected = command_spec("tool", &[]);
+        expected.stderr = OutputSpec::File {
+            path: PathBuf::from("err.txt"),
+            append: true,
+        };
+
+        assert_eq!(
+            parse_execution_line("tool 2>> err.txt").unwrap(),
+            ExecutionPlan::Command(expected)
+        );
+    }
+
+    #[test]
     fn parses_two_command_pipeline() {
         assert_eq!(
             parse_execution_line("producer | consumer arg").unwrap(),
@@ -670,6 +730,10 @@ mod tests {
         assert_eq!(
             execution_error("tool < | other").kind,
             ParseErrorKind::MissingRedirectionTarget(RedirectionOperator::Stdin)
+        );
+        assert_eq!(
+            execution_error("tool 2>").kind,
+            ParseErrorKind::MissingRedirectionTarget(RedirectionOperator::StderrTruncate)
         );
     }
 

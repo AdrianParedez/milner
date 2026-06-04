@@ -67,6 +67,53 @@ fn stdin_redirection_reads_from_file() {
 }
 
 #[test]
+fn stderr_redirection_writes_new_file_without_capturing_stdout() {
+    let temp = temp_dir("stderr-new");
+    let output = temp.join("out.txt");
+    let error = temp.join("err.txt");
+
+    let result = run_line(&format!(
+        "powershell -NoProfile -Command \"[Console]::Out.Write('out'); [Console]::Error.Write('err')\" > \"{}\" 2> \"{}\"",
+        output.display(),
+        error.display()
+    ));
+
+    assert_eq!(result.status.code(), Some(0));
+    assert_eq!(fs::read_to_string(output).unwrap(), "out");
+    assert_eq!(fs::read_to_string(error).unwrap(), "err");
+}
+
+#[test]
+fn stderr_redirection_truncates_existing_file() {
+    let temp = temp_dir("stderr-truncate");
+    let error = temp.join("err.txt");
+    fs::write(&error, "before").unwrap();
+
+    let result = run_line(&format!(
+        "powershell -NoProfile -Command \"[Console]::Error.Write('after')\" 2> \"{}\"",
+        error.display()
+    ));
+
+    assert_eq!(result.status.code(), Some(0));
+    assert_eq!(fs::read_to_string(error).unwrap(), "after");
+}
+
+#[test]
+fn stderr_redirection_appends_existing_file() {
+    let temp = temp_dir("stderr-append");
+    let error = temp.join("err.txt");
+    fs::write(&error, "before").unwrap();
+
+    let result = run_line(&format!(
+        "powershell -NoProfile -Command \"[Console]::Error.Write(' after')\" 2>> \"{}\"",
+        error.display()
+    ));
+
+    assert_eq!(result.status.code(), Some(0));
+    assert_eq!(fs::read_to_string(error).unwrap(), "before after");
+}
+
+#[test]
 fn two_command_pipeline_transfers_bytes_and_delivers_eof() {
     let temp = temp_dir("pipeline");
     let output = temp.join("out.txt");
@@ -95,6 +142,24 @@ fn missing_redirection_file_prevents_launch() {
     assert_eq!(result.status.code(), Some(125));
     assert!(!marker.exists());
     assert!(String::from_utf8_lossy(&result.stderr).contains("open stdin"));
+}
+
+#[test]
+fn missing_stderr_parent_prevents_launch() {
+    let temp = temp_dir("missing-stderr-parent");
+    let missing_parent = temp.join("missing");
+    let error = missing_parent.join("err.txt");
+    let marker = temp.join("marker.txt");
+
+    let result = run_line(&format!(
+        "powershell -NoProfile -Command \"[System.IO.File]::WriteAllText('{}','launched')\" 2> \"{}\"",
+        marker.display(),
+        error.display()
+    ));
+
+    assert_eq!(result.status.code(), Some(125));
+    assert!(!marker.exists());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("open stderr"));
 }
 
 fn run_line(input: &str) -> Output {

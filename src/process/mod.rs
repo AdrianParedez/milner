@@ -289,6 +289,7 @@ fn execute_command(command: ParsedCommand, options: &ExecutionOptions) -> Result
             command,
             stdin: InputSpec::Inherit,
             stdout: OutputSpec::Inherit,
+            stderr: OutputSpec::Inherit,
         },
         options,
     )
@@ -359,6 +360,7 @@ fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Res
     let stdio = win32::stdio_handles()?;
     let stdin_file = open_stdin_file(&command.stdin, options.cwd.as_deref())?;
     let stdout_file = open_stdout_file(&command.stdout, options.cwd.as_deref())?;
+    let stderr_file = open_stderr_file(&command.stderr, options.cwd.as_deref())?;
     let child_stdio = win32::StdioHandles {
         stdin: stdin_file
             .as_ref()
@@ -366,7 +368,9 @@ fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Res
         stdout: stdout_file
             .as_ref()
             .map_or(stdio.stdout, |file| file.as_raw_handle()),
-        stderr: stdio.stderr,
+        stderr: stderr_file
+            .as_ref()
+            .map_or(stdio.stderr, |file| file.as_raw_handle()),
     };
 
     let child = win32::spawn_child(&mut command_line, child_stdio, launch.as_config())?;
@@ -420,6 +424,8 @@ fn execute_pipeline(
     let stdio = win32::stdio_handles()?;
     let left_stdin_file = open_stdin_file(&left.stdin, options.cwd.as_deref())?;
     let right_stdout_file = open_stdout_file(&right.stdout, options.cwd.as_deref())?;
+    let left_stderr_file = open_stderr_file(&left.stderr, options.cwd.as_deref())?;
+    let right_stderr_file = open_stderr_file(&right.stderr, options.cwd.as_deref())?;
     let (pipe_read, pipe_write) = win32::create_pipe()?;
 
     let left_stdio = win32::StdioHandles {
@@ -427,14 +433,18 @@ fn execute_pipeline(
             .as_ref()
             .map_or(stdio.stdin, |file| file.as_raw_handle()),
         stdout: pipe_write.raw(),
-        stderr: stdio.stderr,
+        stderr: left_stderr_file
+            .as_ref()
+            .map_or(stdio.stderr, |file| file.as_raw_handle()),
     };
     let right_stdio = win32::StdioHandles {
         stdin: pipe_read.raw(),
         stdout: right_stdout_file
             .as_ref()
             .map_or(stdio.stdout, |file| file.as_raw_handle()),
-        stderr: stdio.stderr,
+        stderr: right_stderr_file
+            .as_ref()
+            .map_or(stdio.stderr, |file| file.as_raw_handle()),
     };
 
     let left_child = win32::spawn_child(&mut left_line, left_stdio, left_launch.as_config())?;
@@ -761,6 +771,16 @@ fn open_stdout_file(spec: &OutputSpec, cwd: Option<&Path>) -> Result<Option<File
     }
 }
 
+fn open_stderr_file(spec: &OutputSpec, cwd: Option<&Path>) -> Result<Option<File>, RunError> {
+    match spec {
+        OutputSpec::Inherit => Ok(None),
+        OutputSpec::File { path, append } => {
+            open_file_for_write_with_context("open stderr", &resolve_io_path(path, cwd), *append)
+                .map(Some)
+        }
+    }
+}
+
 fn resolve_io_path(path: &Path, cwd: Option<&Path>) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()
@@ -780,6 +800,14 @@ fn open_file_for_read(path: &Path) -> Result<File, RunError> {
 }
 
 fn open_file_for_write(path: &Path, append: bool) -> Result<File, RunError> {
+    open_file_for_write_with_context("open stdout", path, append)
+}
+
+fn open_file_for_write_with_context(
+    context: &'static str,
+    path: &Path,
+    append: bool,
+) -> Result<File, RunError> {
     let mut options = OpenOptions::new();
     options.create(true).write(true);
     if append {
@@ -789,7 +817,7 @@ fn open_file_for_write(path: &Path, append: bool) -> Result<File, RunError> {
     }
 
     options.open(path).map_err(|source| RunError::Io {
-        context: "open stdout",
+        context,
         path: path.to_path_buf(),
         source,
     })

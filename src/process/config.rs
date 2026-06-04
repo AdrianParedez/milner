@@ -205,7 +205,15 @@ fn parse_alias(
         ExecutionPlan::Command(command)
             if command.stdin == InputSpec::Inherit && command.stdout == OutputSpec::Inherit =>
         {
-            command.command
+            if command.stderr == OutputSpec::Inherit {
+                command.command
+            } else {
+                return Err(invalid(
+                    path,
+                    line,
+                    "alias values must not include redirection",
+                ));
+            }
         }
         ExecutionPlan::Command(_) => {
             return Err(invalid(

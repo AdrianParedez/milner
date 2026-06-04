@@ -92,6 +92,18 @@ fn prompt_reports_builtin_argument_errors() {
 }
 
 #[test]
+fn prompt_rejects_stderr_redirection_for_builtins() {
+    let temp = temp_dir("builtin-stderr");
+    let error = temp.join("err.txt");
+    let output = run_prompt(&format!("pwd 2> \"{}\"\nexit 0\n", error.display()));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(stderr.contains("pwd: redirection is not supported for built-ins"));
+    assert!(!error.exists());
+}
+
+#[test]
 fn prompt_reports_invalid_cd_paths() {
     let output = run_prompt("cd X:\\keel\\definitely-missing-directory\nexit 0\n");
 

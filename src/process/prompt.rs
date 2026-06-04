@@ -263,7 +263,10 @@ where
         return PromptPlanResult::External(Box::new(ExecutionPlan::Command(command)));
     };
 
-    if command.stdin != InputSpec::Inherit || command.stdout != OutputSpec::Inherit {
+    if command.stdin != InputSpec::Inherit
+        || command.stdout != OutputSpec::Inherit
+        || command.stderr != OutputSpec::Inherit
+    {
         return PromptPlanResult::Handled(Err(BuiltinError::UnsupportedRedirection(name)));
     }
 
@@ -274,6 +277,7 @@ where
                 command,
                 stdin: InputSpec::Inherit,
                 stdout: OutputSpec::Inherit,
+                stderr: OutputSpec::Inherit,
             })))
         }
     }

@@ -126,6 +126,7 @@ Examples:
 milner.exe --no-config notepad.exe
 milner.exe --no-config powershell -NoProfile -Command "Get-Date"
 milner.exe --no-config --line "cargo --version > version.txt"
+milner.exe --no-config --line "powershell -NoProfile -Command \"[Console]::Error.Write('err')\" 2> error.txt"
 milner.exe --no-config --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep 30"
 ```
 
@@ -147,7 +148,7 @@ Policy shape at a glance:
 | Native launch | Resolves executables and launches with `CreateProcessW`.[^createprocess] |
 | Command parsing | Parses commands into typed structures before execution. |
 | Prompt mode | Provides `cd`, `pwd`, `complete`, and `exit` built-ins. |
-| Redirection | Supports stdin redirection and stdout write/append redirection. |
+| Redirection | Supports stdin, stdout write/append, and stderr write/append redirection. |
 | Pipelines | Supports exactly one two-command external pipeline. |
 | Execution policy | Rejects unsupported operators, `.bat`, and `.cmd` targets. |
 | Handles | Gives children only intended `stdin`, `stdout`, and `stderr`. |
@@ -161,6 +162,7 @@ Policy shape at a glance:
 milner.exe --no-config --cwd C:\Windows notepad.exe
 milner.exe --no-config --set-env MILNER_DEMO=1 powershell -NoProfile -Command "$env:MILNER_DEMO"
 milner.exe --no-config --line "cargo --version >> output.txt"
+milner.exe --no-config --line "powershell -NoProfile -Command \"[Console]::Error.Write('err')\" 2>> error.txt"
 milner.exe --no-config --timeout-ms 1000 powershell -NoProfile -Command "Start-Sleep 30"
 ```
 
@@ -174,6 +176,8 @@ milner.exe --no-config --timeout-ms 1000 powershell -NoProfile -Command "Start-S
 | `"empty" ""` | Supported | Empty quoted arguments are preserved. |
 | `stdout > file` | Supported | Redirect stdout, replacing the target. |
 | `stdout >> file` | Supported | Redirect stdout, appending to the target. |
+| `stderr 2> file` | Supported | Redirect stderr, replacing the target. |
+| `stderr 2>> file` | Supported | Redirect stderr, appending to the target. |
 | `stdin < file` | Supported | Redirect stdin from a file. |
 | `left \| right` | Supported | Exactly one external two-command pipeline. |
 | `&&`, `\|\|`, `;` | Rejected | Explicit parse errors. |
@@ -271,7 +275,6 @@ GitHub Actions also uploads generated Rust HTML docs as the
 
 - Windows-only.
 - No arbitrary-length pipelines.
-- No stderr redirection.
 - No variables, globbing, aliases with redirection, or command substitution.
 - No background jobs.
 - No custom Ctrl+C handling.

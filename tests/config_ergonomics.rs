@@ -123,6 +123,27 @@ fn aliases_expand_through_typed_commands() {
 }
 
 #[test]
+fn aliases_cannot_include_stderr_redirection() {
+    let temp = temp_dir("alias-stderr");
+    let config = temp.join("config.toml");
+    let error = temp.join("err.txt");
+    fs::write(
+        &config,
+        format!(
+            "[aliases]\nbad = powershell -NoProfile -Command \"exit 0\" 2> {}\n",
+            error.display()
+        ),
+    )
+    .unwrap();
+
+    let output = run_prompt(&["--config", path_text(&config).as_str()], "");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(125));
+    assert!(stderr.contains("alias values must not include redirection"));
+}
+
+#[test]
 fn alias_cycles_are_reported_without_exiting_prompt() {
     let temp = temp_dir("alias-cycle");
     let config = temp.join("config.toml");
