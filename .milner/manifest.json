@@ -1,0 +1,683 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-05T08:48:18Z",
+  "generator": "milner-xtask context-pack v1",
+  "source_selection": {
+    "included_roots": [
+      "README.md",
+      "docs/**",
+      "tests/**",
+      "architecture-decision-corpus/docs/checklists/*.md",
+      "architecture-decision-corpus/docs/design/*.md",
+      "architecture-decision-corpus/docs/milestones/*.md",
+      "architecture-decision-corpus/docs/research/*.md"
+    ],
+    "excluded_corpus_patterns": [
+      "architecture-decision-corpus/docs/design/draft-readme.md",
+      "architecture-decision-corpus/docs/design/public-readme-release-draft.md",
+      "architecture-decision-corpus/docs/checklists/security-patch-v0.6.1-acceptance.md",
+      "architecture-decision-corpus/docs/milestones/13-security-patch-v0.6.1.md",
+      "architecture-decision-corpus/docs/templates/**",
+      "architecture-decision-corpus/milner/**"
+    ]
+  },
+  "sources": [
+    {
+      "citation_id": "milner:sha256:089eaadf1721056c:b33563055168",
+      "relative_path": "README.md",
+      "content_hash": "sha256:089eaadf1721056c172e8d9eedece5b2b8ecc275eaf8b78e1b9d215bd4a66c4b",
+      "last_modified": "2026-06-05T08:01:49Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 10081,
+      "category": "readme"
+    },
+    {
+      "citation_id": "milner:sha256:c9869acb3b088852:35f9984254b8",
+      "relative_path": "architecture-decision-corpus/docs/checklists/command-parser-acceptance.md",
+      "content_hash": "sha256:c9869acb3b088852bfd1f3e4cb60e30de965e0829236d309fdc67ed46507e350",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1287,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:626f051e0a9c0f75:b914c0f8ed62",
+      "relative_path": "architecture-decision-corpus/docs/checklists/configuration-ergonomics-acceptance.md",
+      "content_hash": "sha256:626f051e0a9c0f75c407fb01b298d47665f3c0178959812f557a5a7bfa991bd5",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1171,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:32750c22117cc8f2:8402105b6c61",
+      "relative_path": "architecture-decision-corpus/docs/checklists/console-interrupt-policy-acceptance.md",
+      "content_hash": "sha256:32750c22117cc8f2e82ae19baa984a2bccf4a835316aaccccade0edf1cd1932b",
+      "last_modified": "2026-06-04T23:04:30Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1676,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:b1b2df320055ba66:3463df2041c1",
+      "relative_path": "architecture-decision-corpus/docs/checklists/execution-policy-resolution-acceptance.md",
+      "content_hash": "sha256:b1b2df320055ba66a227392ad73faad5e444e16307f420859b17f4f232603753",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1358,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:98f385cc19c4b392:d2c2b9cc923c",
+      "relative_path": "architecture-decision-corpus/docs/checklists/interactive-prompt-acceptance.md",
+      "content_hash": "sha256:98f385cc19c4b39228dd97c32576c2d1ed7243e43c01202eb8037e76855a2d75",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1142,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:dc0ef4c4a9e7d236:6e0fa0bc0a1d",
+      "relative_path": "architecture-decision-corpus/docs/checklists/job-control-cancellation-acceptance.md",
+      "content_hash": "sha256:dc0ef4c4a9e7d236cf8f0481bd1668b70e14712555ed647cccd00cbf02329c08",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1245,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:14731a7becf0d2ce:d44bc126f526",
+      "relative_path": "architecture-decision-corpus/docs/checklists/job-object-boundary-acceptance.md",
+      "content_hash": "sha256:14731a7becf0d2ce4de1aa5112de269ec4f60bf6a7c89c4c31f4e655185ca72e",
+      "last_modified": "2026-06-04T22:10:35Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1599,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:ec9b1df0ac69d48a:c4f4c2307236",
+      "relative_path": "architecture-decision-corpus/docs/checklists/process-runner-acceptance.md",
+      "content_hash": "sha256:ec9b1df0ac69d48a067d1b4dbcfc0ceb5e37e2e079980ca794816dc1c17952fd",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1994,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:6ca877092bcdb771:0f538112e766",
+      "relative_path": "architecture-decision-corpus/docs/checklists/pseudoconsole-readiness-acceptance.md",
+      "content_hash": "sha256:6ca877092bcdb771852b8d3d1349a569d2f81854830d1b480cb667d7ae6cc3d0",
+      "last_modified": "2026-06-05T03:22:09Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1726,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:2426db22155c872a:6fc660425ca4",
+      "relative_path": "architecture-decision-corpus/docs/checklists/redirection-pipelines-acceptance.md",
+      "content_hash": "sha256:2426db22155c872a5c7ed29c27581c940fa01168388acd6817d79dc33267a5fc",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1290,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:bea993ee3d9fe35d:e3ec01174fee",
+      "relative_path": "architecture-decision-corpus/docs/checklists/shell-state-builtins-acceptance.md",
+      "content_hash": "sha256:bea993ee3d9fe35d6bd6ecceb29c75f910d82e091e25f7797dcba142b5bea510",
+      "last_modified": "2026-06-04T04:23:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1161,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:29e75e02c7990250:2748b088c88c",
+      "relative_path": "architecture-decision-corpus/docs/checklists/structured-execution-records-acceptance.md",
+      "content_hash": "sha256:29e75e02c7990250adfb1a7fc8fee1331bcbd8aead8f93acb7599b026e8dbbd0",
+      "last_modified": "2026-06-05T00:50:58Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1683,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:a499af1f8cafa330:76dbd33e8d87",
+      "relative_path": "architecture-decision-corpus/docs/design/command-parser.md",
+      "content_hash": "sha256:a499af1f8cafa3301c220f9df9444a9c70735395fc5d2544fc34d76d886d754e",
+      "last_modified": "2026-06-04T05:03:24Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2907,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:f11ba3bcb7771ab4:fbfb9d7147b0",
+      "relative_path": "architecture-decision-corpus/docs/design/configuration-ergonomics.md",
+      "content_hash": "sha256:f11ba3bcb7771ab4f4b36c2c38e6711edb7913c1f4d0ef850f675d43fb5a2b0c",
+      "last_modified": "2026-06-04T06:48:44Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1879,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:ec694b6345d4bb0d:a3108e90c2f4",
+      "relative_path": "architecture-decision-corpus/docs/design/console-interrupt-policy.md",
+      "content_hash": "sha256:ec694b6345d4bb0d599c89eb0e7b15f3977696a6c03fe49b13056fb1521cde14",
+      "last_modified": "2026-06-04T23:04:30Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2882,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:44a96500211bf9ce:568402f8f6db",
+      "relative_path": "architecture-decision-corpus/docs/design/execution-policy-resolution.md",
+      "content_hash": "sha256:44a96500211bf9ce74861b662d23959ea82c5f9c819bf559597ebb46f5ea7578",
+      "last_modified": "2026-06-04T04:21:48Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1689,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:a9f6808de0e6e05e:35ac09736b3b",
+      "relative_path": "architecture-decision-corpus/docs/design/interactive-prompt.md",
+      "content_hash": "sha256:a9f6808de0e6e05ec2432fe7ad56a3e0d9d01ba348367dd267e9ef1420a42a38",
+      "last_modified": "2026-06-04T04:21:48Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1472,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:5a7507a57cdb6b97:b7a3df1c10b2",
+      "relative_path": "architecture-decision-corpus/docs/design/job-control-cancellation.md",
+      "content_hash": "sha256:5a7507a57cdb6b976364dff6da751ca4bca847032a86a0dd54f1bf65c0c499fa",
+      "last_modified": "2026-06-04T06:48:31Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1844,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:7e3f9d22bd2b99cd:bb78dcbe30ff",
+      "relative_path": "architecture-decision-corpus/docs/design/job-object-boundary.md",
+      "content_hash": "sha256:7e3f9d22bd2b99cd0f273e345a7aa7c91e6a1a9ea6efb287012435bf411a5a95",
+      "last_modified": "2026-06-04T13:02:39Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 3058,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:1f875d704785d415:61f582a598f5",
+      "relative_path": "architecture-decision-corpus/docs/design/pseudoconsole-readiness.md",
+      "content_hash": "sha256:1f875d704785d415722c68d483483e9b63eb2c5dbc7746c180fbe95b2458094a",
+      "last_modified": "2026-06-05T03:18:26Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 3359,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:99307a3f91dffaf7:90504d958729",
+      "relative_path": "architecture-decision-corpus/docs/design/redirection-pipelines.md",
+      "content_hash": "sha256:99307a3f91dffaf77e3d884c5926e63a0c4d575c32b9644da15af3683261946e",
+      "last_modified": "2026-06-04T04:21:48Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1591,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:e80914788ed3bd28:e4ec6179f388",
+      "relative_path": "architecture-decision-corpus/docs/design/run-exe.md",
+      "content_hash": "sha256:e80914788ed3bd280057d0cf5237a812d9d350c6aea97d66decf786cbb659494",
+      "last_modified": "2026-06-04T04:21:48Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2028,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:c3f098bb919d6fcf:1f8d0ce140ff",
+      "relative_path": "architecture-decision-corpus/docs/design/shell-state-builtins.md",
+      "content_hash": "sha256:c3f098bb919d6fcfa1bb326642c8aac11651f2d2f619645b675f8aa0976e2f2e",
+      "last_modified": "2026-06-04T04:21:48Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1442,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:02845082fb0e1204:5498fb1118fd",
+      "relative_path": "architecture-decision-corpus/docs/design/structured-execution-records.md",
+      "content_hash": "sha256:02845082fb0e1204d0c8b2fbe48ef55547fb3ba8260619a81439613135094fe7",
+      "last_modified": "2026-06-05T00:50:42Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 3027,
+      "category": "specification"
+    },
+    {
+      "citation_id": "milner:sha256:8a7c8c932f379473:699edf866b6b",
+      "relative_path": "architecture-decision-corpus/docs/milestones/01-process-runner.md",
+      "content_hash": "sha256:8a7c8c932f37947307645be4c72e634ccb3d630292600c066b97ede07a4388c8",
+      "last_modified": "2026-06-04T04:19:00Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1629,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:9c4b1b0f9f6155de:6f3e5bcd14ee",
+      "relative_path": "architecture-decision-corpus/docs/milestones/02-command-parser.md",
+      "content_hash": "sha256:9c4b1b0f9f6155de836480ab766e127dcae2f50e762f021e640ef124c6d72fbb",
+      "last_modified": "2026-06-04T06:47:04Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2098,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:2eb63a3a8e5cbeb8:7c2a9b977ff2",
+      "relative_path": "architecture-decision-corpus/docs/milestones/03-interactive-prompt.md",
+      "content_hash": "sha256:2eb63a3a8e5cbeb8ac828ba5f0e1476ac062d4075dd4f939be31f73f87e75fd2",
+      "last_modified": "2026-06-04T06:47:13Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1631,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:8614b4dd8ed5964c:d9452ef28d1e",
+      "relative_path": "architecture-decision-corpus/docs/milestones/04-shell-state-builtins.md",
+      "content_hash": "sha256:8614b4dd8ed5964c5e936700ec33d2ad942eb448afad7ae6f2544ab458ccb1df",
+      "last_modified": "2026-06-04T06:47:20Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1637,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:020b6204b762321a:cc7b1e12a09d",
+      "relative_path": "architecture-decision-corpus/docs/milestones/05-redirection-pipelines.md",
+      "content_hash": "sha256:020b6204b762321ad4f1596e8f1ab1e19ff32bfbacb248d4f7bdad1c48e62124",
+      "last_modified": "2026-06-04T06:47:28Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1907,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:6679434fd2c7817a:7599235cdb00",
+      "relative_path": "architecture-decision-corpus/docs/milestones/06-execution-policy-resolution.md",
+      "content_hash": "sha256:6679434fd2c7817a9f061177590083af7c5979d3194c5fb0755d2dd3c6aa2979",
+      "last_modified": "2026-06-04T06:47:39Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1971,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:5f4ef083045caf29:ee089f9eee23",
+      "relative_path": "architecture-decision-corpus/docs/milestones/07-job-control-cancellation.md",
+      "content_hash": "sha256:5f4ef083045caf290c796b831d5c0ec413e55acd957a2d84b63b573de57be902",
+      "last_modified": "2026-06-04T06:47:49Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1833,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:bcda5be858a7618d:4dd1c6b07a37",
+      "relative_path": "architecture-decision-corpus/docs/milestones/08-configuration-ergonomics.md",
+      "content_hash": "sha256:bcda5be858a7618d36c6f31dce0284920e3e137b56abee63425a7316c968ae6f",
+      "last_modified": "2026-06-04T06:47:57Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1744,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:bf852e8cb1cf9cde:c3c5d6bb5978",
+      "relative_path": "architecture-decision-corpus/docs/milestones/09-job-object-boundary.md",
+      "content_hash": "sha256:bf852e8cb1cf9cde1a1067671f8cc4095e27efdede1725791e938ed146d40a36",
+      "last_modified": "2026-06-04T22:10:35Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2064,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:24a227bd51deb87f:2a2c543e8f29",
+      "relative_path": "architecture-decision-corpus/docs/milestones/10-console-interrupt-policy.md",
+      "content_hash": "sha256:24a227bd51deb87f60e9da16f89dca39c1278e3dbc3e0c5ddbcf0d5477281569",
+      "last_modified": "2026-06-05T00:50:14Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2397,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:fd30e732b7fa1387:599eb1b299ec",
+      "relative_path": "architecture-decision-corpus/docs/milestones/11-structured-execution-records.md",
+      "content_hash": "sha256:fd30e732b7fa138769b393e016282384d727801547790c94158d2a2e9547611f",
+      "last_modified": "2026-06-05T03:10:30Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2785,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:ad85a0a5ff2f990d:ab7b3f19dffe",
+      "relative_path": "architecture-decision-corpus/docs/milestones/12-pseudoconsole-readiness.md",
+      "content_hash": "sha256:ad85a0a5ff2f990d59b48dc6b59f236597e854d5e893685c36974043b3354caa",
+      "last_modified": "2026-06-05T03:34:03Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2372,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:a2a11006fd578afa:bd198e98b969",
+      "relative_path": "architecture-decision-corpus/docs/milestones/README.md",
+      "content_hash": "sha256:a2a11006fd578afa00089586512bfbbabec0d139d796f4342db53bb7d54b7fab",
+      "last_modified": "2026-06-05T05:26:45Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 7190,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:14cff88495bdef83:a4c9c304bb7d",
+      "relative_path": "architecture-decision-corpus/docs/research/command-parser.md",
+      "content_hash": "sha256:14cff88495bdef83c8d74dc8a00b48079aca244771eee1f9dd7557e3121bb47f",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2525,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:0a9c8426ef8d3f52:50d0f4abc586",
+      "relative_path": "architecture-decision-corpus/docs/research/configuration-ergonomics.md",
+      "content_hash": "sha256:0a9c8426ef8d3f52078f5e98cd3f250a16f3b2408d8c9eea58ba99df86fb5426",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1867,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:f2ffda7ac9a7cc2f:bf004b35cfb2",
+      "relative_path": "architecture-decision-corpus/docs/research/console-interrupt-policy.md",
+      "content_hash": "sha256:f2ffda7ac9a7cc2face5bbfa14137e0fa328e6426e43b7e1f5d62751dd20b1ed",
+      "last_modified": "2026-06-04T13:02:39Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 3163,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:152a4e0fe5948276:e4ad6ec35610",
+      "relative_path": "architecture-decision-corpus/docs/research/execution-policy-resolution.md",
+      "content_hash": "sha256:152a4e0fe594827680b22a4d533c0029e46dafe8b32e23d34ff9f6605a8e5eaf",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2482,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:8b92319b24583077:b1d87caa163f",
+      "relative_path": "architecture-decision-corpus/docs/research/interactive-prompt.md",
+      "content_hash": "sha256:8b92319b245830770001fbf32765869b60d577437bf23b13eafcaa0ea710fa63",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2042,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:df029a35aecea26a:fd183532098e",
+      "relative_path": "architecture-decision-corpus/docs/research/job-control-cancellation.md",
+      "content_hash": "sha256:df029a35aecea26aff39f799cf96c3b9ce22b93fdd9bbc36b6f7fe8cb157a851",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1842,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:b87b58be7b6771ad:54ec9485cc5e",
+      "relative_path": "architecture-decision-corpus/docs/research/job-object-boundary.md",
+      "content_hash": "sha256:b87b58be7b6771ad3ff69c4ae9076a2144124f480e8a2c373d931f958a1f52f1",
+      "last_modified": "2026-06-04T13:02:39Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 3993,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:91ee2e0ca61adb0c:7b053e13709d",
+      "relative_path": "architecture-decision-corpus/docs/research/pseudoconsole-readiness.md",
+      "content_hash": "sha256:91ee2e0ca61adb0c136b7e896bab8ec988e305f0d8d59603c82e14e633684f0c",
+      "last_modified": "2026-06-05T03:18:12Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 3908,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:3d1165bc1921b966:6f90c2869716",
+      "relative_path": "architecture-decision-corpus/docs/research/redirection-pipelines.md",
+      "content_hash": "sha256:3d1165bc1921b96644ab81cf4ffdbdb26b5449ef600c13552a64932c5332e8c7",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2065,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:0686c323fb4968a4:04298680a1bd",
+      "relative_path": "architecture-decision-corpus/docs/research/shell-state-builtins.md",
+      "content_hash": "sha256:0686c323fb4968a442d40994c253f2dafdad927f66e2cafb1c28b8d08454593a",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2145,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:a7976614ed27c802:2d59dc82b04e",
+      "relative_path": "architecture-decision-corpus/docs/research/structured-execution-records.md",
+      "content_hash": "sha256:a7976614ed27c8028ca4306fce90ba9077bef81644b97e011d575c51350bf5d9",
+      "last_modified": "2026-06-04T13:02:39Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2815,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:ddd8c8330bcda416:95aa8d5304a8",
+      "relative_path": "architecture-decision-corpus/docs/research/win32-process-runner.md",
+      "content_hash": "sha256:ddd8c8330bcda416229ffc9d7410425d460bc9e00a1c39da97eb41c7e2f7d9b9",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 10800,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:12c9511ef98520ae:0d71fa82e786",
+      "relative_path": "architecture-decision-corpus/docs/research/windows-sys-features.md",
+      "content_hash": "sha256:12c9511ef98520ae9fd6815928faad137a21c5d98c426ffc1f5a25b82457e574",
+      "last_modified": "2026-06-04T04:20:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 3383,
+      "category": "corpus"
+    },
+    {
+      "citation_id": "milner:sha256:8ef258730b54942a:0b5ca119d2be",
+      "relative_path": "docs/README.md",
+      "content_hash": "sha256:8ef258730b54942a056bb180f70667c87fcb7d4902d8fdbe3bd44299b01b26c2",
+      "last_modified": "2026-06-05T08:41:49Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1307,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:2c014afd8ce245c6:a95975256127",
+      "relative_path": "docs/limitations.md",
+      "content_hash": "sha256:2c014afd8ce245c6629fee6e74afb2220e84dfec35ff71842ede5b54f479749f",
+      "last_modified": "2026-06-05T08:30:18Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1034,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:d6123915da4c55b7:975000db2bb1",
+      "relative_path": "docs/reference/cli.md",
+      "content_hash": "sha256:d6123915da4c55b7ded4eb8fd7e8f9c277f9a80157b12e872d5bbd009d8d060b",
+      "last_modified": "2026-06-05T08:30:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1887,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:7a5df505ace80c27:5812cf0d04cc",
+      "relative_path": "docs/reference/configuration.md",
+      "content_hash": "sha256:7a5df505ace80c2711183dbd0cc5662d613940533e8c0f2f9b86ef0b0ef5ad90",
+      "last_modified": "2026-06-05T08:30:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1808,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:4178227654485281:425136936217",
+      "relative_path": "docs/reference/execution-records.md",
+      "content_hash": "sha256:41782276544852811e7c11bec46105bba9497d971dbdd2c4cbaca8f498e0e58a",
+      "last_modified": "2026-06-05T08:30:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2833,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:1daccbf6432642f0:0d87fa5feb12",
+      "relative_path": "docs/reference/exit-codes.md",
+      "content_hash": "sha256:1daccbf6432642f0285fd35c37c8de209815f2b95668107fd420077cf57ba6b4",
+      "last_modified": "2026-06-05T08:30:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1262,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:808d137f89f1db12:32a5081235ae",
+      "relative_path": "docs/reference/generated-rustdoc.md",
+      "content_hash": "sha256:808d137f89f1db126057cc20ad36a8d44b64e78a470eb27a86021e4e2095dcc7",
+      "last_modified": "2026-06-05T08:30:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 685,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:5499319f0612476c:b65b77272344",
+      "relative_path": "docs/reference/stability.md",
+      "content_hash": "sha256:5499319f0612476cae739c795749d6cd9309ab94a9c35f57fdf7135eada5a4d3",
+      "last_modified": "2026-06-05T08:48:18Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 5088,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:7fa8dd195982d569:785fd76b516f",
+      "relative_path": "docs/reference/syntax.md",
+      "content_hash": "sha256:7fa8dd195982d5696889e3a22b8e82a8e765cd9d26fec75215b8342896557bc7",
+      "last_modified": "2026-06-05T08:30:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1765,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:f50f5a175393e816:e6144abf8e8a",
+      "relative_path": "docs/security/privacy.md",
+      "content_hash": "sha256:f50f5a175393e8167db9daf54c2fec8a3204937f0d390769cd543f021ed0b61b",
+      "last_modified": "2026-06-05T08:30:18Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1163,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:98b4f11dd9c5865d:b1478e33ace9",
+      "relative_path": "docs/security/security-model.md",
+      "content_hash": "sha256:98b4f11dd9c5865dfd4ea50e95bde208cde1a0018227503214d2d8b6552ba680",
+      "last_modified": "2026-06-05T08:30:18Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 2303,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:204ceb8a001196ce:373ebedf1806",
+      "relative_path": "docs/troubleshooting.md",
+      "content_hash": "sha256:204ceb8a001196ce66b0aa58692a5fe58f66838fa0a04fd425aadb38bd1ffe0d",
+      "last_modified": "2026-06-05T08:30:18Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1844,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:6d60294ef1c533a8:03e5ab617764",
+      "relative_path": "docs/user-guide/install.md",
+      "content_hash": "sha256:6d60294ef1c533a8c85ffba686edc1b01e20a52f3fcbfe10ab0aaa2710062b1c",
+      "last_modified": "2026-06-05T08:30:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1368,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:5008af02d525e2cf:cd4d97eac2a0",
+      "relative_path": "docs/user-guide/prompt.md",
+      "content_hash": "sha256:5008af02d525e2cff945b68cbcb9840d30b555cd9820e383f19e8cd34d34f23d",
+      "last_modified": "2026-06-05T08:30:18Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1321,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:bbd4abdde8a34318:2791c7e4727d",
+      "relative_path": "docs/user-guide/quick-start.md",
+      "content_hash": "sha256:bbd4abdde8a343182afa12ec784ec4bfb31dd10322b05eb4caebd9767a1da289",
+      "last_modified": "2026-06-05T08:30:18Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 1907,
+      "category": "documentation"
+    },
+    {
+      "citation_id": "milner:sha256:7b1162dec54ea20b:c91635ed417c",
+      "relative_path": "tests/config_ergonomics.rs",
+      "content_hash": "sha256:7b1162dec54ea20bfc895e14b520137d401a06ccc6d6a7d151ce2a8ef17dce1b",
+      "last_modified": "2026-06-05T05:30:11Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 7323,
+      "category": "test"
+    },
+    {
+      "citation_id": "milner:sha256:400722fed649f3fe:f05070e95bc7",
+      "relative_path": "tests/execution_policy.rs",
+      "content_hash": "sha256:400722fed649f3fe91671147b6c647e6d5608a19dbfb3ef8d8ae8c85e40ff5b7",
+      "last_modified": "2026-06-05T03:17:29Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 5163,
+      "category": "test"
+    },
+    {
+      "citation_id": "milner:sha256:b52e0fcb7fa99958:270c95360d42",
+      "relative_path": "tests/execution_records.rs",
+      "content_hash": "sha256:b52e0fcb7fa999582d6cfea6c08d8c2b9f1e510b7ad9e84ae3594a9521b32808",
+      "last_modified": "2026-06-05T00:48:52Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 5080,
+      "category": "test"
+    },
+    {
+      "citation_id": "milner:sha256:f0f5f165cfa64f72:6651e5b6a9c2",
+      "relative_path": "tests/foreground_cancellation.rs",
+      "content_hash": "sha256:f0f5f165cfa64f726dcac71f73e006e5eb8c38c813e2e294999dd5994aefd5dc",
+      "last_modified": "2026-06-04T23:03:02Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 6324,
+      "category": "test"
+    },
+    {
+      "citation_id": "milner:sha256:4b7380ca9f01a374:dcffd534077f",
+      "relative_path": "tests/prompt_regression.rs",
+      "content_hash": "sha256:4b7380ca9f01a37499615eb8a4260c82ba85813a0349ae7fca04a4518299bddd",
+      "last_modified": "2026-06-05T05:29:58Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 6203,
+      "category": "test"
+    },
+    {
+      "citation_id": "milner:sha256:c8283a28bb19a643:a8383c59f157",
+      "relative_path": "tests/redirection_pipeline.rs",
+      "content_hash": "sha256:c8283a28bb19a6438fc991c4e3d6453593b6e3544a765024252e76f2c9d5c6da",
+      "last_modified": "2026-06-04T13:09:07Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 5699,
+      "category": "test"
+    },
+    {
+      "citation_id": "milner:sha256:8382a538397ea60c:8f787cfcc555",
+      "relative_path": "tests/security_regression.rs",
+      "content_hash": "sha256:8382a538397ea60c7cb4360086432478c1b0950b6244b8aa93247e335e727f9b",
+      "last_modified": "2026-06-05T05:29:46Z",
+      "freshness": "2026-06-05T08:48:18Z",
+      "file_size": 9721,
+      "category": "test"
+    }
+  ]
+}
