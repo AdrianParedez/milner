@@ -19,6 +19,7 @@ inheritance. Small shell syntax over accidental compatibility.
 
 <p>
   <a href="#install">Install</a> ·
+  <a href="docs/">Docs</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#capabilities">Capabilities</a> ·
   <a href="#supported-syntax">Syntax</a> ·
@@ -81,6 +82,18 @@ milner --prompt
 ```
 
 Release binaries are published when a `vX.Y.Z` tag is pushed.
+
+## Documentation
+
+The public documentation is organized under [`docs/`](docs/):
+
+- [Install](docs/user-guide/install.md)
+- [Quick start](docs/user-guide/quick-start.md)
+- [CLI reference](docs/reference/cli.md)
+- [Command syntax](docs/reference/syntax.md)
+- [Configuration](docs/reference/configuration.md)
+- [Execution records](docs/reference/execution-records.md)
+- [Security model](docs/security/security-model.md)
 
 ## Quick Start
 

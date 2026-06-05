@@ -9,7 +9,6 @@ scripts/
 
 # Internal research, planning, and generated project notes
 architecture-decision-corpus/
-docs/
 
 # Generated research and browser artifacts
 output/
