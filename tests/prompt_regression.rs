@@ -140,6 +140,27 @@ fn prompt_rejects_batch_targets() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("batch targets are not supported"));
 }
 
+#[test]
+fn prompt_rejects_batch_targets_with_trailing_spaces() {
+    let temp = temp_dir("prompt-normalized-batch-reject");
+    let script = temp.join("echo_args.cmd");
+    let marker = temp.join("prompt_normalized_batch_marker.txt");
+    fs::write(
+        &script,
+        format!(
+            "@echo off\r\necho SHOULD_NOT_EXIST>{}\r\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
+
+    let output = run_prompt(&format!("\"{} \"\n", script.display()));
+
+    assert_eq!(output.status.code(), Some(125));
+    assert!(!marker.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("batch targets are not supported"));
+}
+
 fn run_prompt(input: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")

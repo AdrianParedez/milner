@@ -40,6 +40,39 @@ fn rejects_batch_targets_before_cmd_can_reinterpret_arguments() {
 }
 
 #[test]
+fn rejects_windows_normalized_batch_targets_before_launch() {
+    let temp = temp_dir("normalized-batch-reject");
+    let script = temp.join("echo_args.cmd");
+    let marker = temp.join("normalized_batch_marker.txt");
+    fs::write(
+        &script,
+        format!(
+            "@echo off\r\necho SHOULD_NOT_EXIST>{}\r\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
+
+    for program in [
+        format!("{} ", script.display()),
+        format!("{}.", script.display()),
+        format!("{} .", script.display()),
+    ] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
+            .arg("--no-config")
+            .arg(program)
+            .output()
+            .unwrap();
+
+        assert_eq!(output.status.code(), Some(125));
+        assert!(!marker.exists());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("batch targets are not supported")
+        );
+    }
+}
+
+#[test]
 fn parsed_command_line_launches_through_process_runner() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")
@@ -69,6 +102,32 @@ fn parsed_batch_targets_remain_rejected_before_launch() {
         .arg("--no-config")
         .arg("--line")
         .arg(format!("\"{}\"", script.display()))
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(125));
+    assert!(!marker.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("batch targets are not supported"));
+}
+
+#[test]
+fn parsed_batch_targets_with_trailing_spaces_remain_rejected_before_launch() {
+    let temp = temp_dir("parsed-normalized-batch-reject");
+    let script = temp.join("echo_args.cmd");
+    let marker = temp.join("parsed_normalized_batch_marker.txt");
+    fs::write(
+        &script,
+        format!(
+            "@echo off\r\necho SHOULD_NOT_EXIST>{}\r\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
+        .arg("--no-config")
+        .arg("--line")
+        .arg(format!("\"{} \"", script.display()))
         .output()
         .unwrap();
 

@@ -1,11 +1,12 @@
 use std::ffi::{OsStr, OsString};
-use std::os::windows::ffi::OsStrExt;
+use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::path::Path;
 
 use super::RunError;
 
 pub fn reject_windows_batch_target(program: &OsStr) -> Result<(), RunError> {
-    let Some(extension) = Path::new(program).extension() else {
+    let normalized_program = trim_windows_ignored_trailing_chars(program);
+    let Some(extension) = Path::new(&normalized_program).extension() else {
         return Ok(());
     };
 
@@ -14,6 +15,14 @@ pub fn reject_windows_batch_target(program: &OsStr) -> Result<(), RunError> {
     }
 
     Ok(())
+}
+
+fn trim_windows_ignored_trailing_chars(program: &OsStr) -> OsString {
+    let mut encoded: Vec<u16> = program.encode_wide().collect();
+    while matches!(encoded.last(), Some(unit) if *unit == ' ' as u16 || *unit == '.' as u16) {
+        encoded.pop();
+    }
+    OsString::from_wide(&encoded)
 }
 
 pub fn build_command_line(program: &OsStr, args: &[OsString]) -> Result<Vec<u16>, RunError> {
@@ -113,6 +122,14 @@ mod tests {
         assert!(reject_windows_batch_target(OsStr::new("script.bat")).is_err());
         assert!(reject_windows_batch_target(OsStr::new("script.CMD")).is_err());
         assert!(reject_windows_batch_target(OsStr::new("script.exe")).is_ok());
+    }
+
+    #[test]
+    fn rejects_batch_targets_with_windows_ignored_trailing_characters() {
+        assert!(reject_windows_batch_target(OsStr::new("script.cmd ")).is_err());
+        assert!(reject_windows_batch_target(OsStr::new("script.bat.")).is_err());
+        assert!(reject_windows_batch_target(OsStr::new("script.CMD .")).is_err());
+        assert!(reject_windows_batch_target(OsStr::new("script.exe ")).is_ok());
     }
 
     #[test]

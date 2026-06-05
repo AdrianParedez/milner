@@ -183,6 +183,33 @@ fn aliases_cannot_bypass_batch_rejection() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("batch targets are not supported"));
 }
 
+#[test]
+fn aliases_cannot_bypass_batch_rejection_with_trailing_spaces() {
+    let temp = temp_dir("alias-normalized-batch");
+    let config = temp.join("config.toml");
+    let script = temp.join("bad.cmd");
+    let marker = temp.join("marker.txt");
+    fs::write(
+        &script,
+        format!(
+            "@echo off\r\necho SHOULD_NOT_EXIST>{}\r\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        &config,
+        format!("[aliases]\nbad = \"{} \"\n", script.display()),
+    )
+    .unwrap();
+
+    let output = run_prompt(&["--config", path_text(&config).as_str()], "bad\n");
+
+    assert_eq!(output.status.code(), Some(125));
+    assert!(!marker.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("batch targets are not supported"));
+}
+
 fn run_prompt(args: &[&str], input: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_milner"))
         .args(args)
