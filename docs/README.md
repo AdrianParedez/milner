@@ -22,6 +22,7 @@ in. The Rust module layout is still implementation detail.
 - [Configuration](reference/configuration.md)
 - [Execution records](reference/execution-records.md)
 - [Exit codes](reference/exit-codes.md)
+- [Stability contract](reference/stability.md)
 - [Generated Rust docs](reference/generated-rustdoc.md)
 
 ## Safety And Operations
