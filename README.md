@@ -291,6 +291,7 @@ GitHub Actions also uploads generated Rust HTML docs as the
 <summary><strong>Known limitations</strong></summary>
 
 - Windows-only.
+- No ConPTY or pseudoconsole terminal hosting.
 - No arbitrary-length pipelines.
 - No variables, globbing, aliases with redirection, or command substitution.
 - No background jobs.

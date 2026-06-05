@@ -480,6 +480,8 @@ mod tests {
 
     #[test]
     fn empty_input_prompts_again_until_eof() {
+        let _guard = interrupt::test_lock();
+        interrupt::clear_pending_for_test();
         let mut output = Vec::new();
         let mut errors = Vec::new();
 
@@ -498,6 +500,8 @@ mod tests {
 
     #[test]
     fn parser_errors_are_non_fatal() {
+        let _guard = interrupt::test_lock();
+        interrupt::clear_pending_for_test();
         let mut output = Vec::new();
         let mut errors = Vec::new();
 
@@ -520,6 +524,8 @@ mod tests {
 
     #[test]
     fn pending_prompt_interrupt_discards_line_and_prompts_again() {
+        let _guard = interrupt::test_lock();
+        interrupt::clear_pending_for_test();
         let mut output = Vec::new();
         let mut errors = Vec::new();
         request(InterruptKind::CtrlC);

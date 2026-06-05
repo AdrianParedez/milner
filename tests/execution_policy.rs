@@ -135,6 +135,16 @@ fn missing_executable_reports_resolution_policy() {
     assert!(stderr.contains("did not search the current directory"));
 }
 
+#[test]
+fn pty_mode_is_reserved_and_unsupported() {
+    let output = run(["--pty", "powershell"]);
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ConPTY pseudoconsole hosting is not supported"));
+    assert!(stderr.contains("direct CreateProcessW execution remains the supported mode"));
+}
+
 fn run<const N: usize>(args: [&str; N]) -> Output {
     std::process::Command::new(env!("CARGO_BIN_EXE_milner"))
         .arg("--no-config")

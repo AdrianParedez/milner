@@ -35,6 +35,7 @@ pub enum RunError {
     InvalidEnvironmentName(OsString),
     InvalidEnvironmentAssignment(OsString),
     InvalidTimeout(OsString),
+    UnsupportedFeature(&'static str),
     AliasCycle(Vec<String>),
     ExecutableNotFound {
         program: OsString,
@@ -75,6 +76,7 @@ impl RunError {
             Self::InvalidEnvironmentName(_)
             | Self::InvalidEnvironmentAssignment(_)
             | Self::InvalidTimeout(_)
+            | Self::UnsupportedFeature(_)
             | Self::AliasCycle(_) => 2,
             Self::NonUnicodeCommandLine => 2,
             Self::EmptyProgram
@@ -121,6 +123,7 @@ impl std::fmt::Display for RunError {
                 "timeout `{}` must be a positive millisecond value",
                 value.to_string_lossy()
             ),
+            Self::UnsupportedFeature(message) => write!(f, "{message}"),
             Self::AliasCycle(names) => {
                 write!(f, "alias cycle detected: {}", names.join(" -> "))
             }
@@ -258,6 +261,12 @@ pub fn run_from_env() -> Result<u32, RunError> {
             let value = args.next().ok_or(RunError::Usage)?;
             options.timeout_ms = Some(parse_timeout_ms(value)?);
             continue;
+        }
+
+        if arg == "--pty" {
+            return Err(RunError::UnsupportedFeature(
+                "ConPTY pseudoconsole hosting is not supported; direct CreateProcessW execution remains the supported mode",
+            ));
         }
 
         break arg;
