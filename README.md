@@ -152,7 +152,7 @@ Policy shape at a glance:
 | Pipelines | Supports exactly one two-command external pipeline. |
 | Execution policy | Rejects unsupported operators, `.bat`, and `.cmd` targets. |
 | Handles | Gives children only intended `stdin`, `stdout`, and `stderr`. |
-| Configuration | Reads a small config subset for prompt, history, and aliases. |
+| Configuration | Reads a small config subset for prompt, history, records, and aliases. |
 | Cancellation | Cancels foreground process trees with `--timeout-ms <ms>`, Ctrl+C, or Ctrl+Break. |
 
 <details>
@@ -211,6 +211,10 @@ text = "milner> "
 enabled = false
 path = C:\Users\you\AppData\Roaming\milner\history.txt
 
+[records]
+enabled = false
+path = C:\Users\you\AppData\Roaming\milner\records.ndjson
+
 [aliases]
 gs = git status
 ```
@@ -225,8 +229,21 @@ writes history to:
 %APPDATA%\milner\history.txt
 ```
 
-Milner avoids recording command lines that contain obvious secret words such as
+History avoids recording command lines that contain obvious secret words such as
 `password`, `secret`, or `token`.
+
+*Execution records are disabled by default.* When enabled without an explicit
+path, Milner writes newline-delimited JSON records to:
+
+```text
+%APPDATA%\milner\records.ndjson
+```
+
+Execution records are local only. They include parsed command structure,
+resolution result, cwd, timing, exit or error status, and policy decisions.
+They do not include environment values, stdout content, stderr content, or
+remote telemetry. Milner skips records for command lines that contain obvious
+secret words such as `password`, `secret`, or `token`.
 
 <details>
 <summary><strong>Alias boundaries</strong></summary>

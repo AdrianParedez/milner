@@ -20,6 +20,7 @@ pub(super) enum ConfigSource {
 pub(super) struct ShellConfig {
     pub prompt: PromptConfig,
     pub history: HistoryConfig,
+    pub records: RecordsConfig,
     pub aliases: BTreeMap<String, ParsedCommand>,
 }
 
@@ -30,6 +31,12 @@ pub(super) struct PromptConfig {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct HistoryConfig {
+    pub enabled: bool,
+    pub path: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct RecordsConfig {
     pub enabled: bool,
     pub path: Option<PathBuf>,
 }
@@ -78,6 +85,7 @@ impl Default for ShellConfig {
                 text: DEFAULT_PROMPT.to_string(),
             },
             history: HistoryConfig::default(),
+            records: RecordsConfig::default(),
             aliases: BTreeMap::new(),
         }
     }
@@ -106,6 +114,7 @@ enum Section {
     Root,
     Prompt,
     History,
+    Records,
     Aliases,
 }
 
@@ -136,6 +145,7 @@ fn parse_config(path: &Path, input: &str) -> Result<ShellConfig, ConfigError> {
             }
             Section::Prompt => parse_prompt_key(path, line_number, key, value, &mut config)?,
             Section::History => parse_history_key(path, line_number, key, value, &mut config)?,
+            Section::Records => parse_records_key(path, line_number, key, value, &mut config)?,
             Section::Aliases => parse_alias(path, line_number, key, value, &mut config)?,
         }
     }
@@ -147,6 +157,7 @@ fn parse_section(path: &Path, line: usize, value: &str) -> Result<Section, Confi
     match value {
         "[prompt]" => Ok(Section::Prompt),
         "[history]" => Ok(Section::History),
+        "[records]" => Ok(Section::Records),
         "[aliases]" => Ok(Section::Aliases),
         _ => Err(invalid(path, line, "unknown or malformed section")),
     }
@@ -189,6 +200,26 @@ fn parse_history_key(
             Ok(())
         }
         _ => Err(invalid(path, line, "unknown history key")),
+    }
+}
+
+fn parse_records_key(
+    path: &Path,
+    line: usize,
+    key: &str,
+    value: &str,
+    config: &mut ShellConfig,
+) -> Result<(), ConfigError> {
+    match key {
+        "enabled" => {
+            config.records.enabled = parse_bool(path, line, value)?;
+            Ok(())
+        }
+        "path" => {
+            config.records.path = Some(PathBuf::from(parse_text_value(path, line, value)?));
+            Ok(())
+        }
+        _ => Err(invalid(path, line, "unknown records key")),
     }
 }
 
@@ -313,6 +344,12 @@ pub(super) fn default_history_path() -> Option<PathBuf> {
     std::env::var_os("APPDATA")
         .map(PathBuf::from)
         .map(|path| path.join("milner").join("history.txt"))
+}
+
+pub(super) fn default_records_path() -> Option<PathBuf> {
+    std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .map(|path| path.join("milner").join("records.ndjson"))
 }
 
 fn alias_parse_error(path: &Path, line: usize, err: ParseError) -> ConfigError {

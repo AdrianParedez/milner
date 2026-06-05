@@ -4,6 +4,7 @@ mod handles;
 mod interrupt;
 mod parser;
 mod prompt;
+mod records;
 mod win32;
 
 use std::collections::BTreeMap;
@@ -350,6 +351,17 @@ fn alias_name(command: &ParsedCommand) -> Option<&str> {
 }
 
 fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Result<u32, RunError> {
+    let mut record = records::command(&command, options.cwd.as_deref());
+    let result = execute_command_spec_inner(command, options, record.as_mut());
+    records::persist_result(record, &options.config.records, &result);
+    result
+}
+
+fn execute_command_spec_inner(
+    command: CommandSpec,
+    options: &ExecutionOptions,
+    mut record: Option<&mut records::ExecutionRecord>,
+) -> Result<u32, RunError> {
     if command.command.program.is_empty() {
         return Err(RunError::EmptyProgram);
     }
@@ -360,6 +372,10 @@ fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Res
         options.cwd.as_deref(),
         &prepared_environment,
     )?;
+    if let Some(record) = record.as_mut() {
+        record.set_resolved_executable(0, &resolved.application_name);
+        record.add_policy("explicit_executable_resolution");
+    }
     let launch = prepare_launch(
         &resolved,
         options.cwd.as_deref(),
@@ -381,6 +397,10 @@ fn execute_command_spec(command: CommandSpec, options: &ExecutionOptions) -> Res
             .as_ref()
             .map_or(stdio.stderr, |file| file.as_raw_handle()),
     };
+    if let Some(record) = record {
+        record.add_policy("narrow_stdio_handles");
+        record.add_policy("job_object_cleanup_boundary");
+    }
 
     let child = win32::spawn_child(&mut command_line, child_stdio, launch.as_config())?;
     ForegroundTask::new(vec![child], options.timeout_ms).wait()
@@ -390,6 +410,18 @@ fn execute_pipeline(
     left: CommandSpec,
     right: CommandSpec,
     options: &ExecutionOptions,
+) -> Result<u32, RunError> {
+    let mut record = records::pipeline(&left, &right, options.cwd.as_deref());
+    let result = execute_pipeline_inner(left, right, options, record.as_mut());
+    records::persist_result(record, &options.config.records, &result);
+    result
+}
+
+fn execute_pipeline_inner(
+    left: CommandSpec,
+    right: CommandSpec,
+    options: &ExecutionOptions,
+    mut record: Option<&mut records::ExecutionRecord>,
 ) -> Result<u32, RunError> {
     if left.stdout != OutputSpec::Inherit {
         return Err(RunError::InvalidExecutionPlan(
@@ -415,6 +447,12 @@ fn execute_pipeline(
         options.cwd.as_deref(),
         &prepared_environment,
     )?;
+    if let Some(record) = record.as_mut() {
+        record.set_resolved_executable(0, &left_resolved.application_name);
+        record.set_resolved_executable(1, &right_resolved.application_name);
+        record.add_policy("explicit_executable_resolution");
+        record.add_policy("single_pipeline_limit");
+    }
     let left_launch = prepare_launch(
         &left_resolved,
         options.cwd.as_deref(),
@@ -455,6 +493,10 @@ fn execute_pipeline(
             .as_ref()
             .map_or(stdio.stderr, |file| file.as_raw_handle()),
     };
+    if let Some(record) = record {
+        record.add_policy("narrow_stdio_handles");
+        record.add_policy("job_object_cleanup_boundary");
+    }
 
     let left_child = win32::spawn_child(&mut left_line, left_stdio, left_launch.as_config())?;
     let right_child =
